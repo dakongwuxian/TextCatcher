@@ -56,3 +56,6 @@ Notes:
 
 2. The top-right corner has two buttons to access common regex examples and regex tutorials.
 
+![GUI screen shot](https://github.com/user-attachments/assets/38572eea-b8fd-4f25-9dc2-e4fa127f4d6f)
+
+
