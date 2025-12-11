@@ -76,7 +76,7 @@ class MainGUI(tk.Tk):
         self.about_menu.add_command(label="Developed by Xian.Wu", state="disabled")
         self.about_menu.add_command(label="dakongwuxian@gmail.com", state="disabled")
 
-        self.about_menu.add_command(label="Ver. 20251209", state="disabled")
+        self.about_menu.add_command(label="Ver. 20251212", state="disabled")
 
         self.about_menu.add_command(label="Donation Here.",command=self.show_about_window,state="normal")
 
@@ -609,14 +609,21 @@ class MainGUI(tk.Tk):
                 i = j
                 continue
 
-            # 2️⃣ 空白字符（空格 / Tab）→ \s{N}
+            # # 2️⃣ 空白字符（空格 / Tab）→ \s{N}
+            # if ch.isspace():
+            #     j = i
+            #     while j < length and text[j].isspace():
+            #         j += 1
+            #     space_len = j - i
+            #     result.append(r"\s{" + str(space_len) + "}")
+            #     i = j
+            #     continue
+
+            # 2️⃣ 空白字符（空格 / Tab / 换行） → 转成 \s+
             if ch.isspace():
-                j = i
-                while j < length and text[j].isspace():
-                    j += 1
-                space_len = j - i
-                result.append(r"\s{" + str(space_len) + "}")
-                i = j
+                while i < length and text[i].isspace():
+                    i += 1
+                result.append(r"\s+")
                 continue
 
             # 3️⃣ 字母和中文 → 保留原样
@@ -819,6 +826,9 @@ class MainGUI(tk.Tk):
         # 更新右侧 regex 显示
         self.regex_text_input.delete("1.0", tk.END)
         self.regex_text_input.insert("1.0", item.get("regex", ""))
+        
+        # 高亮 regex 的括号内的 capture group
+        self.highlight_capture_groups()
 
     def unmark_button_function(self):
         cursor = self.left_text_widget.index("insert")
@@ -1904,7 +1914,7 @@ class MainGUI(tk.Tk):
         # 新建窗口
         win = tk.Toplevel(self)
         win.title("常用泛化正则表达式表")
-        win.geometry("1200x270")
+        win.geometry("1200x300")
 
         # 文本区域
         text_area = tk.Text(win, wrap="none", font=("Sarasa Mono SC", 12))
@@ -1925,6 +1935,8 @@ class MainGUI(tk.Tk):
 11  中文+英文                 中文abc                [\u4e00-\u9fffA-Za-z]+                           中文和英文混合
 12  中文+英文+数字            中文abc123             [\u4e00-\u9fffA-Za-z0-9]+                        中文、英文、数字混合
 13  中文+英文+数字+空格符号   中文 abc123,。         [\u4e00-\u9fffA-Za-z0-9\s\p{P}]+                 中文、英文、数字、空格、标点符号混合
+14  任意字符                  任意内容               .*?                                              非贪婪匹配任意字符，不包括换行符
+15  任意字符                  任意内容               [\s\S]*?                                         非贪婪匹配任意字符，包括换行符
 """
 
         text_area.insert("1.0", table_content)
