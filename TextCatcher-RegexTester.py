@@ -10,18 +10,13 @@
 如需商业授权或有任何疑问，请联系：[dakongwuxian@gmail.com]
 """
 import base64
-import io
 from io import BytesIO
 from PIL import Image, ImageTk
-from pydoc import text
 import tkinter as tk
 from tkinter import ttk,filedialog,messagebox
-import tkinter.filedialog as fd
-import tkinter.messagebox as messagebox
-import tkinter.messagebox as mb
 import re
-import time
 import webbrowser
+import threading 
 
 # 嵌入的二维码 base64 字符串（PNG 格式）
 img_base64 = (
@@ -55,7 +50,7 @@ class MainGUI(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("Text Cather - Regex Tester")
+        self.title("Text Catcher - Regex Tester")
         self.geometry("1200x800")
 
         style = ttk.Style()
@@ -76,17 +71,10 @@ class MainGUI(tk.Tk):
         self.about_menu.add_command(label="Developed by Xian.Wu", state="disabled")
         self.about_menu.add_command(label="dakongwuxian@gmail.com", state="disabled")
 
-        self.about_menu.add_command(label="Ver. 20251212", state="disabled")
+        self.about_menu.add_command(label="Ver. 20251222", state="disabled")
 
-        self.about_menu.add_command(label="Donation Here.",command=self.show_about_window,state="normal")
+        self.about_menu.add_command(label="Buy me a coffee ☕",command=self.show_about_window,state="normal")
 
-
-        # 用于存储所有动态生成的控件引用
-        #self.dynamic_widgets = []
-
-        # 初始化所有动态创建和删除的控件变量为 None
-        #self.acsii_unicode_class_label = None
-        #self.acsii_unicode_class_entry = None
 
         # 用于处理input text中的文本的信息
         self.input_string_content = None
@@ -158,8 +146,9 @@ class MainGUI(tk.Tk):
         self.regex_text_scrollbar.config(command=self.regex_text_input.yview)
         # 设置捕获组高亮的tag
         self.regex_text_input.tag_configure("capture_group", foreground="#cc6600")
+        self.regex_text_input.tag_configure("notcare", background="light gray",foreground="white")
         # 自动高亮捕获组
-        self.regex_text_input.bind("<KeyRelease>", lambda e: self.highlight_capture_groups())
+        #self.regex_text_input.bind("<KeyRelease>", lambda e: self.highlight_capture_groups())
         # 绑定到 Text
         self.regex_text_input.bind("<KeyRelease>", self.update_highlight_items)
 
@@ -265,190 +254,6 @@ class MainGUI(tk.Tk):
         self.right_scrollbar.config(command=self.right_text_widget.yview)
         self.right_v_scrollbar.config(command=self.right_text_widget.xview)
 
-    def create_new_tab(self):
-        new_title = f"{len([t for t in self.notebook.tabs() if self.notebook.tab(t, 'text') != '']) + 1}"
-        self.add_tab(new_title)
-        self.notebook.select(self.notebook.tabs()[-1])
-
-    def delete_current_tab(self):
-        current = self.notebook.select()
-        if current:
-            self.notebook.forget(current)
-
-    def button_action(self, btn_name):
-        """
-        按钮占位函数
-        """
-        print(f"Button pressed: {btn_name}")
-
-    def on_main_type_change(self, event):
-        #"""一级菜单改变时的分发逻辑"""
-        # 第一步：先清场
-        self.clear_dynamic_widgets()
-        selection = self.node_type_var.get()
-
-        if selection == "Fixed String":
-            self.setup_fixed_string_ui()
-        elif selection == "Character Class":
-            self.setup_charactor_class_ui()
-        elif selection == "Character Range":
-            self.setup_character_range_ui()
-        elif selection == "Word Boundary Assertion":
-            self.setup_boundary_ui()
-        elif selection == "Back Reference":
-            self.setup_backref_ui()
-
-    def clear_dynamic_widgets(self):
-        # """销毁列表中的所有控件，并清空列表"""
-        for widget in self.dynamic_widgets:
-            if widget.winfo_exists(): # 安全起见，检查控件是否还存在
-                widget.destroy()
-        self.dynamic_widgets.clear() # 清空列表
-
-    # ==========================================
-    # 1. Fixed String UI
-    # ==========================================
-    def setup_fixed_string_ui(self):
-        self.type_edit_second_level_label.config(text="String:")
-        self.setup_fixed_string_ui_entry = ttk.Entry(self.mid_btn_frame)
-        self.setup_fixed_string_ui_entry.grid(row=1, column=9, sticky="ew", padx=5, pady=5)
-
-        # 【关键】加入管理列表
-        self.dynamic_widgets.append(self.setup_fixed_string_ui_entry)
-        #setup_fixed_string_ui_entry.insert(0, "abc") # 示例
-
-    # ==========================================
-    # 2. Predefined Character Class UI (\d, \w, \xhh...)
-    # ==========================================
-    def setup_charactor_class_ui(self):
-        self.type_edit_second_level_label.config(text="Class:")
-
-        self.setup_charactor_class_ui_combobox_var = tk.StringVar()
-        self.setup_charactor_class_ui_combobox = ttk.Combobox(self.mid_btn_frame, textvariable=self.setup_charactor_class_ui_combobox_var, state="readonly")
-        self.setup_charactor_class_ui_combobox.grid(row=1, column=9, sticky="w", padx=5, pady=5)
-
-        # 【关键】加入管理列表
-        self.dynamic_widgets.append(self.setup_charactor_class_ui_combobox)
-        
-        # 这里只放预定义字符和转义符
-        options = [
-            r"\d (Digit)", r"\D (Non-digit)", 
-            r"\w (Word char)", r"\W (Non-word)", 
-            r"\s (Whitespace)", r"\S (Non-whitespace)",
-            r". (Any char)",
-            r"\t (Tab)", r"\r (CR)", r"\n (LF)",
-            r"\xhh (Hex Value)", r"\uhhhh (Unicode)"
-        ]
-        self.setup_charactor_class_ui_combobox['values'] = options
-        self.setup_charactor_class_ui_combobox.current(0)
-
-        
-        # 绑定事件，处理 Hex/Unicode 需要额外输入框的情况
-        self.setup_charactor_class_ui_combobox.bind("<<ComboboxSelected>>", self.when_charactor_class_change)
-
-    def when_charactor_class_change(self, event):
-        # 检查label和entry是否存在，如果存在，先删除
-        # 检查变量是否已被赋值 (不为 None)
-        if self.acsii_unicode_class_label is not None:
-            self.acsii_unicode_class_label.destroy()
-            self.acsii_unicode_class_label = None  # 销毁后重置，为下次检查做准备
-        
-        if self.acsii_unicode_class_entry is not None:
-            self.acsii_unicode_class_entry.destroy()
-            self.acsii_unicode_class_entry = None # 销毁后重置
-
-        
-        val = self.setup_charactor_class_ui_combobox_var.get()
-        if "xhh" in val or "uhhhh" in val:
-            self.acsii_unicode_class_label = ttk.Label(self.mid_btn_frame, text="Value:", font=("微软雅黑", 9))
-            self.acsii_unicode_class_label.grid(row=2, column=8, sticky="e", padx=5, pady=5)
-
-            self.acsii_unicode_class_entry = ttk.Entry(self.mid_btn_frame)
-            self.acsii_unicode_class_entry.grid(row=2, column=9, sticky="ew", padx=5, pady=5)
-            self.acsii_unicode_class_entry.insert(0, r"\x00" if "xhh" in val else r"\u0000")
-
-            # 加入动态管理列表
-            self.dynamic_widgets.append(self.acsii_unicode_class_label)
-            self.dynamic_widgets.append(self.acsii_unicode_class_entry)
-            
-
-
-    # ==========================================
-    # 3. Character Range UI ([a-z])
-    # ==========================================
-    def setup_character_range_ui(self):
-
-        self.type_edit_second_level_label.config(text="Range:")
-        
-        # Range 输入
-        # min entry
-        self.range_min_entry = ttk.Entry(self.mid_btn_frame,width=4)
-        self.range_min_entry.grid(row=1, column=9, sticky="ew", padx=5, pady=5)
-        # 横杠 slash
-        self.range_slash_label = ttk.Label(self.mid_btn_frame, text="-")
-        self.range_slash_label.grid(row=1, column=10, sticky="ew", padx=5, pady=5)
-        # max entry
-        self.range_max_entry = ttk.Entry(self.mid_btn_frame,width=4)
-        self.range_max_entry.grid(row=1, column=11, sticky="ew", padx=5, pady=5)
-        self.range_min_entry.insert(0, "a")
-        self.range_max_entry.insert(0, "z")
-        # 取反 check button
-        self.character_range_negate_checkbutton_var = tk.BooleanVar(value=False)
-        self.character_range_negate_checkbutton = ttk.Checkbutton(self.mid_btn_frame,variable=self.character_range_negate_checkbutton_var,text="Negate (^)")
-        self.character_range_negate_checkbutton.grid(row=2, column=9,columnspan=3, sticky="w", padx=5, pady=5)
-
-        # 加入动态管理列表
-        self.dynamic_widgets.append(self.range_min_entry)
-        self.dynamic_widgets.append(self.range_slash_label)
-        self.dynamic_widgets.append(self.range_max_entry)
-        self.dynamic_widgets.append(self.character_range_negate_checkbutton)
-
-
-
-
-
-    # ==========================================
-    # 4. Word Boundary UI (\b)
-    # ==========================================
-    def setup_boundary_ui(self):
-        self.type_edit_second_level_label.config(text="")
-        
-        # 取反 check button
-        self.setup_boundary_checkbutton_var = tk.BooleanVar(value=False)
-        self.setup_boundary_checkbutton = ttk.Checkbutton(self.mid_btn_frame,variable=self.character_range_negate_checkbutton_var,text="Negate (^)")
-        self.setup_boundary_checkbutton.grid(row=1, column=9, sticky="w", padx=5, pady=5)
-
-        # 加入动态管理列表
-        self.dynamic_widgets.append(self.setup_boundary_checkbutton)
-
-    # ==========================================
-    # 5. Back Reference UI (\1)
-    # ==========================================
-    def setup_backref_ui(self):
-        self.type_edit_second_level_label.config(text="Back Ref.:")
-        
-        self.setup_backref_combobox_var = tk.StringVar()
-        self.setup_backref_combobox = ttk.Combobox(self.mid_btn_frame, textvariable=self.setup_backref_combobox_var, state="readonly")
-        
-        # 【修正】这里将类别提升到一级菜单
-        self.setup_backref_combobox['values'] = (
-            "Group #1", 
-            "Group #2",
-            "Group #3",
-            "Group #4",
-            "Group #5",
-            "Group #6",
-            "Group #7",
-            "Group #8",
-            "Group #9",
-            "Group #10"
-        )
-        self.setup_backref_combobox.grid(row=1, column=9, sticky="ew", padx=5, pady=5)
-        #self.setup_backref_combobox.bind("<<ComboboxSelected>>", self.on_setup_backref_combobox)
-
-        # 加入动态管理列表
-        self.dynamic_widgets.append(self.setup_backref_combobox)
-
 
     def open_file_button_function(self):
         # 打开文件浏览器，选择txt文件
@@ -544,7 +349,7 @@ class MainGUI(tk.Tk):
                 parts.append("(" + self.generalize_regex_pattern(t) + ")")
 
             elif tp == "notcare":
-                parts.append(r"[\s\S]*?")
+                parts.append(r"[\s\S]{0,10000}?")
 
         return "".join(parts)
 
@@ -591,6 +396,10 @@ class MainGUI(tk.Tk):
         self.left_text_widget.update_idletasks()
 
     def translate_to_regex(self, text: str) -> str:
+        """
+        将选中的普通文本转换为安全的正则表达式字符串。
+        优先级：空白符(泛化) > 转义字符(包含反斜杠) > 数字/字母/中文(保留)
+        """
         result = []
         i = 0
         length = len(text)
@@ -598,46 +407,42 @@ class MainGUI(tk.Tk):
         while i < length:
             ch = text[i]
 
-            # 1️⃣ 数字 → 转成 \d{N}，修改，不转化数字
-            if ch.isdigit():
-                j = i
-                while j < length and text[j].isdigit():
-                    j += 1
-                num_len = j - i
-                #result.append(r"\d{" + str(num_len) + "}")
-                result.append(text[i:j])
-                i = j
-                continue
-
-            # # 2️⃣ 空白字符（空格 / Tab）→ \s{N}
-            # if ch.isspace():
-            #     j = i
-            #     while j < length and text[j].isspace():
-            #         j += 1
-            #     space_len = j - i
-            #     result.append(r"\s{" + str(space_len) + "}")
-            #     i = j
-            #     continue
-
-            # 2️⃣ 空白字符（空格 / Tab / 换行） → 转成 \s+
+            # 1️⃣ 处理连续的空白字符 (空格、Tab、换行)
             if ch.isspace():
+                space_count = 0
                 while i < length and text[i].isspace():
+                    space_count += 1
                     i += 1
-                result.append(r"\s+")
+                
+                # 计算正负 10 的区间
+                # 原本 1 个 -> {0, 11}
+                # 原本 13 个 -> {3, 23}
+                # 注意：下限不能小于 0
+                lower_bound = max(0, space_count - 10)
+                upper_bound = space_count + 10
+                
+                # 构建正则表达式，例如 \s{3,23}
+                result.append(fr"\s{{{lower_bound},{upper_bound}}}")
                 continue
 
-            # 3️⃣ 字母和中文 → 保留原样
-            if ch.isalpha() or '\u4e00' <= ch <= '\u9fff':
-                result.append(ch)
+            # 2️⃣ 处理正则表达式中的特殊符号（优先处理反斜杠）
+            # 注意：我们将 "\\" 放在首位，确保它是第一个被检测到的特殊字符
+            special_chars = "\\.^$*+?{}[]|()"
+            if ch in special_chars:
+                # 在字符前添加反斜杠进行转义
+                result.append("\\" + ch)
                 i += 1
                 continue
 
-            # 4️⃣ 其他字符 → 正则特殊字符需要转义
-            if ch in r".^$*+?{}[]\|()":
-                result.append("\\" + ch)
-            else:
+            # 3️⃣ 处理数字、字母和中文
+            # 保持原样输出，作为正则中的精确匹配锚点
+            if ch.isdigit() or ch.isalpha() or '\u4e00' <= ch <= '\u9fff':
                 result.append(ch)
-
+            else:
+                # 4️⃣ 对于其他未列出的特殊符号，为了安全也进行转义
+                # 或者直接原样输出（如 @, #, % 等在正则中通常不是特殊字符）
+                result.append(ch)
+            
             i += 1
 
         return "".join(result)
@@ -1027,7 +832,7 @@ class MainGUI(tk.Tk):
             try:
                 item["regex"] = "".join([
                     "(" + self.generalize_regex_pattern(s["text"]) + ")" if s["type"]=="capture" else
-                    r"[\s\S]*?" if s["type"]=="notcare" else self.translate_to_regex(s["text"])
+                    r"[\s\S]{0,10000}?" if s["type"]=="notcare" else self.translate_to_regex(s["text"])
                     for s in item["segments"]
                 ])
             except Exception:
@@ -1208,207 +1013,230 @@ class MainGUI(tk.Tk):
         return nodes
 
     def run_button_function(self):
-        """执行正则匹配功能"""
-
-        mode = self.match_mode_value.get()
-        input_text = self.left_text_widget.get("1.0", "end").rstrip("\n")
-        regex_list = [item.get("regex") for item in self.highlight_items if "regex" in item]
-
-        if not regex_list:
-            messagebox.showerror("Error", "No regex rules found in highlight_items.")
+        """执行正则匹配功能：Mode 0 和 Mode 1 统一使用 finditer 核心逻辑"""
+        input_text = self.left_text_widget.get("1.0", "end-1c")
+        # 获取高亮项中的正则字符串
+        regex_raw_list = [item.get("regex") for item in getattr(self, "highlight_items", []) if item.get("regex")]
+        
+        if not regex_raw_list:
+            messagebox.showerror("Error", "No valid regex rules found.")
             return
-
         if not input_text.strip():
             messagebox.showerror("Error", "Left text area is empty.")
             return
 
-        if mode not in (0, 1):
-            messagebox.showerror("Error", "match_mode_value is invalid.")
-            return
+        self.run_button.config(state="disabled", text="Running...")
+        self.update()
 
-        self.right_text_widget.delete("1.0", "end")
+        try:
+            mode = self.match_mode_value.get()
+            show_row = self.show_row_number_value.get()
+            self.right_text_widget.delete("1.0", "end")
 
-        # ---------------------- 模式 0：独立匹配 ----------------------
-        if mode == 0:
-            columns = []
-            row_numbers = []
-
-            for regex in regex_list:
+            # --- 核心搜索阶段：所有模式都先执行全量匹配 ---
+            all_regex_matches = [] # 存储结构: [ [ (line_no, val), ... ], [ ... ] ]
+            
+            for regex_str in regex_raw_list:
                 try:
-                    matches = list(re.finditer(regex, input_text))
+                    matches = list(re.finditer(regex_str, input_text))
                 except Exception as e:
-                    messagebox.showerror("Regex Error", f"Invalid regex:\n{regex}\n\n{e}")
+                    messagebox.showerror("Regex Error", f"Invalid regex:\n{regex_str}\n\n{e}")
                     return
 
-                col_vals = []
-                col_rows = []
-
+                col_data = []
+                current_line_count = 1
+                last_line_check_ptr = 0
+                
                 for m in matches:
-                    # 处理匹配值，替换换行符为4个空格
+                    # 1. 计算增量行号 (核心筛选依据)
+                    abs_start = m.start()
+                    new_newlines = input_text.count("\n", last_line_check_ptr, abs_start)
+                    current_line_count += new_newlines
+                    last_line_check_ptr = abs_start
+                    
+                    # 2. 提取显示内容
                     if m.lastindex:
-                        val = " | ".join(m.group(i).replace("\n", "    ") for i in range(1, m.lastindex + 1))
+                        val = " | ".join(str(m.group(i)).replace("\n", "    ") for i in range(1, m.lastindex + 1))
                     else:
                         val = m.group(0).replace("\n", "    ")
-                    col_vals.append(val)
+                    
+                    # 存储元组：(行号整数, 显示字符串)
+                    col_data.append((current_line_count, val))
+                
+                all_regex_matches.append(col_data)
 
-                    if self.show_row_number_value.get() == 1:
-                        line_no = input_text[:m.start()].count("\n") + 1
-                        col_rows.append(str(line_no))
+            # --- 逻辑处理阶段：根据模式筛选结果 ---
+            final_columns = [] # 最终显示的列数据
+            final_row_numbers = [] # 最终显示的行号数据
 
-                columns.append(col_vals)
-                row_numbers.append(col_rows)
+            if mode == 0:
+                # 模式 0：直接转换
+                for col in all_regex_matches:
+                    final_columns.append([item[1] for item in col])
+                    final_row_numbers.append([str(item[0]) for item in col])
+            
+            elif mode == 1:
+                # 模式 1：瀑布式行号筛选 (Sequence)
+                # 筛选逻辑：每一行必须在上一行之后
+                filtered_rows = [] # [ [val1, val2...], [val1, val2...] ]
+                filtered_rows_no = []
+                
+                # 以第一个 regex 的每个匹配作为起点
+                for i in range(len(all_regex_matches[0])):
+                    temp_seq_vals = []
+                    temp_seq_nos = []
+                    
+                    # 第一个元素
+                    curr_line_no, curr_val = all_regex_matches[0][i]
+                    temp_seq_vals.append(curr_val)
+                    temp_seq_nos.append(str(curr_line_no))
+                    last_line_no = curr_line_no
+                    
+                    possible_sequence = True
+                    # 从第二个 regex 开始找第一个行号更大的
+                    for next_col in all_regex_matches[1:]:
+                        found_next = False
+                        for next_line_no, next_val in next_col:
+                            if next_line_no > last_line_no:
+                                temp_seq_vals.append(next_val)
+                                temp_seq_nos.append(str(next_line_no))
+                                last_line_no = next_line_no
+                                found_next = True
+                                break
+                        
+                        if not found_next:
+                            possible_sequence = False
+                            break
+                    
+                    if possible_sequence:
+                        filtered_rows.append(temp_seq_vals)
+                        filtered_rows_no.append(temp_seq_nos)
 
-            # ---------- 统计每列行数 ----------
-            counts_line_parts = []
-            for col_idx, col in enumerate(columns):
-                if self.show_row_number_value.get() == 1:
-                    counts_line_parts.append("line")
-                counts_line_parts.append(str(len(col)))
-            counts_line = "\t\t".join(counts_line_parts)
+                # 将筛选后的行数据转回列结构以适配现有的 UI 组装逻辑
+                if filtered_rows:
+                    num_regex = len(regex_raw_list)
+                    for col_idx in range(num_regex):
+                        final_columns.append([row[col_idx] for row in filtered_rows])
+                        final_row_numbers.append([row[col_idx] for row in filtered_rows_no])
 
-            # ---------- 组装结果行 ----------
-            max_rows = max(len(col) for col in columns)
-            result_lines = []
+            # --- UI 组装阶段 ---
+            if final_columns:
+                # 1. 表头
+                header_parts = []
+                for col in final_columns:
+                    if show_row == 1: header_parts.append("line")
+                    header_parts.append(str(len(col)))
+                
+                header_line = "\t\t".join(header_parts)
+                divider = "-" * 100
+                
+                # 2. 数据行
+                max_rows = max(len(col) for col in final_columns)
+                result_rows = []
+                for r in range(max_rows):
+                    row_parts = []
+                    for col_idx in range(len(final_columns)):
+                        if show_row == 1:
+                            row_parts.append(final_row_numbers[col_idx][r] if r < len(final_row_numbers[col_idx]) else "")
+                        row_parts.append(final_columns[col_idx][r] if r < len(final_columns[col_idx]) else "")
+                    result_rows.append("\t\t".join(row_parts))
+                
+                final_output = header_line + "\n" + divider + "\n" + "\n".join(result_rows) + "\n"
+                self.right_text_widget.insert(tk.END, final_output)
 
-            for row in range(max_rows):
-                row_parts = []
-                for col_idx, col in enumerate(columns):
-                    # 行号列
-                    if self.show_row_number_value.get() == 1:
-                        if row < len(row_numbers[col_idx]):
-                            row_parts.append(row_numbers[col_idx][row])
-                        else:
-                            row_parts.append("")
-                    # capture列
-                    if row < len(col):
-                        row_parts.append(col[row])
-                    else:
-                        row_parts.append("")
-                result_lines.append("\t\t".join(row_parts))
-
-            self.right_text_widget.insert("1.0", counts_line + "\n" + "\n".join(result_lines))
-            return
-
-        # ---------------------- 模式 1：顺序匹配 ----------------------
-        elif mode == 1:
-            text = input_text
-            results = []
-
-            while text.strip():
-                row = []
-                row_lines = []
-                remaining = text
-
-                for regex in regex_list:
-                    try:
-                        match = re.search(regex, remaining)
-                    except Exception as e:
-                        messagebox.showerror("Regex Error", f"Invalid regex:\n{regex}\n\n{e}")
-                        return
-
-                    if not match:
-                        # 输出前统计行
-                        counts_line_parts = []
-                        for col in regex_list:
-                            if self.show_row_number_value.get() == 1:
-                                counts_line_parts.append("line")
-                            counts_line_parts.append(str(len(results)))
-                        counts_line = "\t\t".join(counts_line_parts)
-                        if results:
-                            self.right_text_widget.insert("1.0", counts_line + "\n" + "\n".join(results))
-                        return
-
-                    # capture 或整体，替换换行符为4个空格
-                    if match.lastindex:
-                        val = " | ".join(match.group(i).replace("\n", "    ") for i in range(1, match.lastindex + 1))
-                    else:
-                        val = match.group(0).replace("\n", "    ")
-                    row.append(val)
-
-                    # 行号
-                    if self.show_row_number_value.get() == 1:
-                        line_no = input_text[:text.find(match.group(0))].count("\n") + 1
-                        row_lines.append(str(line_no))
-
-                    remaining = remaining[match.end():]
-
-                # 插入交替的行号和 capture
-                if self.show_row_number_value.get() == 1:
-                    interleaved_row = []
-                    for ln, val in zip(row_lines, row):
-                        interleaved_row.append(ln)
-                        interleaved_row.append(val)
-                    results.append("\t\t".join(interleaved_row))
-                else:
-                    results.append("\t\t".join(row))
-
-                text = remaining
-
-            # 输出最终结果
-            counts_line_parts = []
-            for col in regex_list:
-                if self.show_row_number_value.get() == 1:
-                    counts_line_parts.append("line")
-                counts_line_parts.append(str(len(results)))
-            counts_line = "\t\t".join(counts_line_parts)
-            self.right_text_widget.insert("1.0", counts_line + "\n" + "\n".join(results))
+        except Exception as e:
+            messagebox.showerror("Runtime Error", f"An error occurred:\n{e}")
+        finally:
+            self.run_button.config(state="normal", text="Run")
 
     def highlight_capture_groups(self):
-        text = self.regex_text_input.get("1.0", "end")
+        text = self.regex_text_input.get("1.0", "end-1c")
 
-        # 清除旧的 tag
+        # 1. 清除旧的 tag
         self.regex_text_input.tag_remove("capture_group", "1.0", "end")
-
+        self.regex_text_input.tag_remove("notcare", "1.0", "end")
+        
+        # --- 2. 先计算捕获组括号的范围 (获取所有括号区间的索引) ---
         stack = []
-        groups = []
-
+        groups = [] # 存储 (start_index, end_index) 数组
         i = 0
         n = len(text)
 
         while i < n:
             ch = text[i]
-
-            # 计算 ch 前面连续的反斜杠数量
+            # 计算反斜杠判定转义
             bs_count = 0
             j = i - 1
             while j >= 0 and text[j] == '\\':
                 bs_count += 1
                 j -= 1
-
             is_escaped = (bs_count % 2 == 1)
 
             if ch == '(' and not is_escaped:
                 stack.append(i)
-
             elif ch == ')' and not is_escaped:
                 if stack:
                     start = stack.pop()
                     end = i + 1
-                    groups.append((start, end))
-
+                    groups.append((start, end)) # 记录捕获组范围
             i += 1
 
-        # 高亮所有捕获组
+        # --- 3. 高亮捕获组 (Capture Groups) ---
         for start, end in groups:
             start_index = f"1.0 + {start} chars"
             end_index = f"1.0 + {end} chars"
             self.regex_text_input.tag_add("capture_group", start_index, end_index)
 
+        # --- 4. 高亮 [\s\S]{0,10000}? (通配符)，增加逻辑判断：不能在捕获组内 ---
+        targets = [r"[\s\S]{0,10000}?", r".{0,10000}?"] # 建议顺便把刚才讨论的非跨行通配符也加上
+        
+        for target in targets:
+            start_search = 0
+            while True:
+                idx = text.find(target, start_search)
+                if idx == -1:
+                    break
+                
+                # 检查转义
+                bs_count = 0
+                j = idx - 1
+                while j >= 0 and text[j] == '\\':
+                    bs_count += 1
+                    j -= 1
+                
+                if bs_count % 2 == 0:  # 未被转义
+                    # --- 修改逻辑核心：判断 idx 是否在任何一个 capture_group 范围内 ---
+                    is_inside_capture = False
+                    for g_start, g_end in groups:
+                        # 如果通配符的起始位置在括号区间内
+                        if g_start <= idx < g_end:
+                            is_inside_capture = True
+                            break
+                    
+                    if not is_inside_capture:
+                        start_pos = f"1.0 + {idx} chars"
+                        end_pos = f"1.0 + {idx + len(target)} chars"
+                        self.regex_text_input.tag_add("notcare", start_pos, end_pos)
+                
+                start_search = idx + len(target)
+
     def update_highlight_items(self, event=None):
         """把 regex_text_input 当前行的文本，更新到对应的 highlight_item（基于 left_text_widget 的光标位置判定）"""
 
-        # 读取右侧单行/多行编辑区当前行文本（如果你右侧是单行可直接取全部）
-        # 这里取当前光标所在的整行内容
-        try:
-            # 如果 regex_text_input 是单行输入，也可以直接用 get("1.0", "end").strip()
-            r_index = self.regex_text_input.index("insert")
-            r_line_no = int(r_index.split('.')[0])
-            text = self.regex_text_input.get(f"{r_line_no}.0", f"{r_line_no}.end").strip()
-        except Exception:
-            # 回退：读取全部
-            text = self.regex_text_input.get("1.0", "end").strip()
+        # 1. 获取输入框当前的正则内容
+        text = self.regex_text_input.get("1.0", "end-1c").strip()
 
-        # 取左侧光标位置，用于判断属于哪个 highlight_item
+        # 【新增】校验正则合法性，不合法时输入框变红，但不保存
+        if text:
+            try:
+                re.compile(text)
+                self.regex_text_input.config(foreground="black")
+            except re.error:
+                self.regex_text_input.config(foreground="red")
+                self.highlight_capture_groups() # 即使语法错误，也更新capture和not care的高亮
+                return # 语法错误时不更新到内存，防止 Run 的时候报错
+
+        # 3. 确定当前光标在左侧文本框的哪个 highlight_item 上
         try:
             cursor = self.left_text_widget.index("insert")
         except Exception:
@@ -1419,6 +1247,7 @@ class MainGUI(tk.Tk):
             self.highlight_items = []
 
         # 若有有效左侧光标，则找到包含该光标的 item 并更新其 regex
+        target_item = None
         if cursor:
             for item in self.highlight_items:
                 s = item.get("start")
@@ -1429,21 +1258,19 @@ class MainGUI(tk.Tk):
                     if (self.left_text_widget.compare(cursor, ">=", s) and
                         self.left_text_widget.compare(cursor, "<=", e)):
                         # 找到对应 item，更新其 regex 字段
-                        item["regex"] = text
-                        return
+                        target_item = item
+                        #item["regex"] = text
+                        break
                 except Exception:
                     # compare 可能因索引格式问题失败，跳过该 item
                     continue
 
-        # 如果没找到对应项（可能是新建），则追加一个新 item（保留 start/end 为 None）
-        new_item = {
-            "regex": text,
-            "start": None,
-            "end": None,
-            "tag": None,
-            "captures": [],
-        }
-        self.highlight_items.append(new_item)
+        # 4. 如果找到了对应的 Match 项，更新它的正则
+        if target_item:
+            target_item["regex"] = text
+
+        # 实时高亮捕获组的括号
+        self.highlight_capture_groups()
 
     def generalize_regex_pattern(self, text):
         t = text.strip()
@@ -1514,9 +1341,17 @@ class MainGUI(tk.Tk):
 
         hl_start = item["start"]
 
-        # 转换为相对 offset
-        rel_start = self.left_text_widget.count(hl_start, abs_sel_start, "chars")[0]
-        rel_end   = self.left_text_widget.count(hl_start, abs_sel_end, "chars")[0]
+        # 1. 获取 count 的结果
+        res_start = self.left_text_widget.count(hl_start, abs_sel_start, "chars")
+        res_end   = self.left_text_widget.count(hl_start, abs_sel_end, "chars")
+
+        # 2. 如果返回值为 None（即无法计算或索引冲突），直接停止运行
+        if res_start is None or res_end is None:
+            return None
+
+        # 3. 如果结果正常，解包获取相对偏移量
+        rel_start = res_start[0]
+        rel_end   = res_end[0]
 
         new_segments = []
         pos = 0
@@ -1565,7 +1400,7 @@ class MainGUI(tk.Tk):
         # -------------------------------------------------------------
         # 1. 选择文件
         # -------------------------------------------------------------
-        file_path = fd.askopenfilename(
+        file_path = filedialog.askopenfilename(
             title="选择 Regex TXT 文件",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
         )
@@ -1695,7 +1530,7 @@ class MainGUI(tk.Tk):
         # -------------------------
         # 2. 弹出保存文件窗口
         # -------------------------
-        file_path = fd.asksaveasfilename(
+        file_path = filedialog.asksaveasfilename(
             title="保存 Regex 文件",
             defaultextension=".txt",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
@@ -1914,7 +1749,7 @@ class MainGUI(tk.Tk):
         # 新建窗口
         win = tk.Toplevel(self)
         win.title("常用泛化正则表达式表")
-        win.geometry("1200x300")
+        win.geometry("1200x420")
 
         # 文本区域
         text_area = tk.Text(win, wrap="none", font=("Sarasa Mono SC", 12))
@@ -1922,21 +1757,29 @@ class MainGUI(tk.Tk):
 
         # 表格内容
         table_content = r"""NO.     匹配类型                  示例                    泛化正则表达式                                   说明
- 1  0x十六进制数              0x1A3F                 0x[A-Fa-f0-9]+                                   匹配 0x 或 0X 开头的任意长度 hex
- 2  十六进制数                1A3F                   [A-Fa-f0-9]+                                     任意长度十六进制字符串
- 3  数值                      123, -45.6             -?\d+(?:\.\d+)?                                  整数、浮点数、负数
- 4  IPv4地址                  192.168.0.1            (?:\d{1,3}\.){3}\d{1,3}                          典型 IPv4 地址
- 5  MAC地址                   01:23:45:67:89:AB      [A-Fa-f0-9]{2}(?:[:-][A-Fa-f0-9]{2}){5}          MAC 地址，可用冒号或短横分隔
- 6  日期                      2025-12-09             \d{4}[-/]\d{1,2}[-/]\d{1,2}                      YYYY-MM-DD 或 YYYY/MM/DD
- 7  时间                      14:30 或 14:30:59      \d{1,2}:\d{2}(?::\d{2})?                         HH:MM 或 HH:MM:SS
- 8  字母数字                  abc123                 [A-Za-z0-9]+                                     仅字母和数字
- 9  字母数字空格              abc 123                [A-Za-z0-9\s]+                                   允许字母、数字及空格
+ 1  1个数字                   5                      \d                                               1个0-9的字符
+ 2  1个或多个数字             31415926               \d+                                              1个或多个数字字符
+ 3  0个或多个数字             ""、3、31415916        \d*                                              0个或1个或多个数字字符
+ 4  1个小写字母               j                      [a-z]                                            1个小写字母
+ 5  1个或多个小写字母         dakbideglskd           [a-z]+                                           1个或多个小写字母
+ 6  0个或多个小写字母         ""或a、dkciejng        [a-z]*                                           0个或1个或多个小写字母
+ 7  以0x开头的十六进制数      0x1A3F                 0x[A-Fa-f0-9]+                                   匹配 0x 或 0X 开头的任意长度 hex
+ 8  十六进制数                1A3F                   [A-Fa-f0-9]+                                     任意长度十六进制字符串
+ 8  字母和数字                abc123                 [A-Za-z0-9]+                                     仅字母和数字
+ 9  字母和数字和空格          abc 123                [A-Za-z0-9\s]+                                   允许字母、数字及空格
 10  中文                      中文                   [\u4e00-\u9fff]+                                 匹配中文字符
 11  中文+英文                 中文abc                [\u4e00-\u9fffA-Za-z]+                           中文和英文混合
 12  中文+英文+数字            中文abc123             [\u4e00-\u9fffA-Za-z0-9]+                        中文、英文、数字混合
-13  中文+英文+数字+空格符号   中文 abc123,。         [\u4e00-\u9fffA-Za-z0-9\s\p{P}]+                 中文、英文、数字、空格、标点符号混合
+13  中+文+数+空格+标点        中文 Abc123,。         [\u4e00-\u9fffA-Za-z0-9\s[^\w\s]]+               涵盖几乎所有常见文本字符
 14  任意字符                  任意内容               .*?                                              非贪婪匹配任意字符，不包括换行符
 15  任意字符                  任意内容               [\s\S]*?                                         非贪婪匹配任意字符，包括换行符
+16  任意数值                  123, -45.6             -?\d+(?:\.\d+)?                                  整数、浮点数、正数、负数
+17  IPv4地址                  192.168.0.1            (?:\d{1,3}\.){3}\d{1,3}                          典型 IPv4 地址
+18  MAC地址                   01:23:45:67:89:AB      [A-Fa-f0-9]{2}(?:[:-][A-Fa-f0-9]{2}){5}          MAC 地址，可用冒号或短横分隔
+19  日期                      2025-12-09             \d{4}[-/]\d{1,2}[-/]\d{1,2}                      YYYY-MM-DD 或 YYYY/MM/DD
+20  时间                      14:30 或 14:30:59      \d{1,2}:\d{2}(?::\d{2})?                         HH:MM 或 HH:MM:SS
+21  空格                      空格                   " " 或 [ ] 或 \x20                               1个空格
+22  空白符                    空格 \t \r \n          \s                                               1个空格、制表符\t、换行\n、回车\r
 """
 
         text_area.insert("1.0", table_content)
@@ -1955,7 +1798,7 @@ class MainGUI(tk.Tk):
             content = self.right_text_widget.get("1.0", "end-1c")
 
             # 2. 选择保存位置
-            file_path = fd.asksaveasfilename(
+            file_path = filedialog.asksaveasfilename(
                 title="Save As",
                 defaultextension=".txt",
                 filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
@@ -1970,14 +1813,14 @@ class MainGUI(tk.Tk):
                 f.write(content)
 
             # 4. 成功提示
-            mb.showinfo("Saved", f"File saved to:\n{file_path}")
+            messagebox.showinfo("Saved", f"File saved to:\n{file_path}")
 
         except Exception as e:
-            mb.showerror("Error", f"Failed to save file:\n{e}")
+            messagebox.showerror("Error", f"Failed to save file:\n{e}")
 
     def show_about_window(self):
         top = tk.Toplevel(self)
-        top.title("Donation")
+        top.title("Coffee!")
         # 设置固定窗口大小
         win_width = 300
         win_height = 300
@@ -2011,8 +1854,9 @@ class MainGUI(tk.Tk):
         except Exception as e:
             tk.Label(top, text=f"图片显示失败: {e}").pack()
 
-        tk.Label(top, text="Open source is not easy.").pack()
-        tk.Label(top, text="Donations are welcome via Alipay.").pack()
+        tk.Label(top, text="If this tool saved your time,").pack()
+        tk.Label(top, text="feel free to buy me a coffee.").pack()
+        tk.Label(top, text="Your support keeps the project going!").pack()
 
 if __name__ == "__main__":
     app = MainGUI()
