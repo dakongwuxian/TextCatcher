@@ -4,6 +4,10 @@ TextCatcher-RegexTester 是一个基于Python的正则表达式文本提取工�
 
 本软件由Xian Wu个人开发，为单一exe文件的GUI程序，可在windows系统上运行（如果要在其他操作系统上运行需要使用原代码重新打包），使用python 3.10和VS2022的环境，借助了ChatGPT和Gemini的帮助。
 
+exe文件的下载链接如下：
+
+https://github.com/dakongwuxian/TextCatcher/releases
+
 
 如何使用：
 1、通过open file加载需要提取的txt文件；
@@ -27,6 +31,10 @@ TextCatcher README – Last Edit: 2025.12.09 by Xian Wu
 TextCatcher-RegexTester is a Python-based text extraction tool for regular expressions. It helps users extract desired content from large amounts of text. Matching patterns can be automatically created through selection and setting, allowing regular expressions to be generated easily. For more complex matching requirements, the regular expressions can also be edited manually.
 
 This software is developed personally by Xian Wu as a standalone GUI executable. It runs on Windows (to run on other operating systems, the original code needs to be repackaged). It uses Python 3.10 and VS2022, with assistance from ChatGPT and Gemini.
+
+exe file download link is:
+
+https://github.com/dakongwuxian/TextCatcher/releases
 
 How to use:
 
