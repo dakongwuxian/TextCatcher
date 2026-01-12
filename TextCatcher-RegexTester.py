@@ -9,14 +9,17 @@
 
 如需商业授权或有任何疑问，请联系：[dakongwuxian@gmail.com]
 """
+# 标准库导入
 import base64
-from io import BytesIO
-from PIL import Image, ImageTk
-import tkinter as tk
-from tkinter import ttk,filedialog,messagebox
 import re
+import threading
 import webbrowser
-import threading 
+from io import BytesIO
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+# 第三方库导入
+from PIL import Image, ImageTk 
 
 # 嵌入的二维码 base64 字符串（PNG 格式）
 img_base64 = (
@@ -48,7 +51,14 @@ img_base64 = (
 
 class MainGUI(tk.Tk):
     def __init__(self):
-        super().__init__()
+        # 尝试使用 tkinterdnd2 创建窗口
+        try:
+            from tkinterdnd2 import TkinterDnD
+            # 如果有 tkinterdnd2，使用它初始化
+            TkinterDnD.Tk.__init__(self)
+        except ImportError:
+            # 如果没有，使用普通 tk.Tk
+            super().__init__()
 
         self.title("Text Catcher - Regex Tester")
         self.geometry("1200x800")
@@ -71,18 +81,21 @@ class MainGUI(tk.Tk):
         self.about_menu.add_command(label="Developed by Xian.Wu", state="disabled")
         self.about_menu.add_command(label="dakongwuxian@gmail.com", state="disabled")
 
-        self.about_menu.add_command(label="Ver. 20251222", state="disabled")
+        self.about_menu.add_command(label="Ver. 20260112", state="disabled")
 
         self.about_menu.add_command(label="Buy me a coffee ☕",command=self.show_about_window,state="normal")
 
 
         # 用于处理input text中的文本的信息
         self.input_string_content = None
-        self.input_text_selected_match_string=[]
-        self.match_string_start_index=[]
-        self.match_string_end_index=[]
-        self.match_string_regular_expression=[]
         self.highlight_items = []
+        
+        # 查找功能相关
+        self.search_history = []
+        self.find_window = None
+        
+        # 位置映射表：{(row, col): (start_pos, end_pos)}
+        self.match_positions = {}
 
 
         # 主框架
@@ -160,9 +173,15 @@ class MainGUI(tk.Tk):
         self.left_frame = ttk.Frame(self.main_frame)
         self.left_frame.grid(row=1, column=0, sticky="nsew", padx=5)
 
-        # ====== 标题 ======
-        self.left_title_label = ttk.Label(self.left_frame, text="Input Text Area", font=("微软雅黑", 11, "bold"))
-        self.left_title_label.pack(anchor="w", pady=5)
+        # ====== 标题区域 ======
+        self.left_title_frame = ttk.Frame(self.left_frame)
+        self.left_title_frame.pack(fill="x", pady=5)
+        
+        self.left_title_label = ttk.Label(self.left_title_frame, text="Input Text Area", font=("微软雅黑", 11, "bold"))
+        self.left_title_label.pack(side="left")
+        
+        self.left_line_number_label = ttk.Label(self.left_title_frame, text="Current Row: 1/1", font=("Consolas", 10))
+        self.left_line_number_label.pack(side="right", padx=(0, 50))
         # ====== 按钮区域 ======
         self.left_btn_frame = ttk.Frame(self.left_frame)
         self.left_btn_frame.pack(fill="x", pady=5)
@@ -211,8 +230,18 @@ class MainGUI(tk.Tk):
         self.left_scrollbar.config(command=self.left_text_widget.yview)
         self.left_v_scrollbar.config(command=self.left_text_widget.xview)
 
+        # 启用拖放功能
+        self.enable_drag_drop()
+
         self.bind_text_sync_dynamic()
         self.bind_cursor_highlight_sync()
+        
+        # 绑定 Ctrl+F 快捷键
+        self.left_text_widget.bind("<Control-f>", self.show_find_dialog)
+        
+        # 绑定光标移动事件以更新行号显示
+        self.left_text_widget.bind("<KeyRelease>", self.update_line_number_display)
+        self.left_text_widget.bind("<ButtonRelease-1>", self.update_line_number_display)
 
         # 右侧frame ——————————————————————————————————————————————————————————————————————————————————
 
@@ -253,6 +282,9 @@ class MainGUI(tk.Tk):
         self.right_text_widget.pack(fill="both", expand=True)
         self.right_scrollbar.config(command=self.right_text_widget.yview)
         self.right_v_scrollbar.config(command=self.right_text_widget.xview)
+        
+        # 绑定双击事件
+        self.right_text_widget.bind("<Double-Button-1>", self.on_right_text_double_click)
 
 
     def open_file_button_function(self):
@@ -1056,9 +1088,9 @@ class MainGUI(tk.Tk):
                     
                     # 2. 提取显示内容
                     if m.lastindex:
-                        val = " | ".join(str(m.group(i)).replace("\n", "    ") for i in range(1, m.lastindex + 1))
+                        val = " | ".join(str(m.group(i)).replace("\r", "<CR>").replace("\n", "<LF>") for i in range(1, m.lastindex + 1))
                     else:
-                        val = m.group(0).replace("\n", "    ")
+                        val = m.group(0).replace("\r", "<CR>").replace("\n", "<LF>")
                     
                     # 存储元组：(行号整数, 显示字符串)
                     col_data.append((current_line_count, val))
@@ -1121,6 +1153,9 @@ class MainGUI(tk.Tk):
 
             # --- UI 组装阶段 ---
             if final_columns:
+                # 清空位置映射
+                self.match_positions = {}
+                
                 # 1. 表头
                 header_parts = []
                 for col in final_columns:
@@ -1130,7 +1165,7 @@ class MainGUI(tk.Tk):
                 header_line = "\t\t".join(header_parts)
                 divider = "-" * 100
                 
-                # 2. 数据行
+                # 2. 数据行并记录位置
                 max_rows = max(len(col) for col in final_columns)
                 result_rows = []
                 for r in range(max_rows):
@@ -1138,6 +1173,44 @@ class MainGUI(tk.Tk):
                     for col_idx in range(len(final_columns)):
                         if show_row == 1:
                             row_parts.append(final_row_numbers[col_idx][r] if r < len(final_row_numbers[col_idx]) else "")
+                        
+                        # 记录位置映射（数据列）
+                        if r < len(final_columns[col_idx]):
+                            # 计算在输入文本中的位置
+                            if mode == 0:
+                                # Mode 0: 直接从 all_regex_matches 获取
+                                if col_idx < len(all_regex_matches) and r < len(all_regex_matches[col_idx]):
+                                    line_no, _ = all_regex_matches[col_idx][r]
+                                    # 查找该行号对应的匹配对象
+                                    regex_str = regex_raw_list[col_idx]
+                                    matches = list(re.finditer(regex_str, input_text))
+                                    if r < len(matches):
+                                        m = matches[r]
+                                        start_pos = f"1.0+{m.start()}c"
+                                        end_pos = f"1.0+{m.end()}c"
+                                        # 行号从3开始（表头+分隔线+数据）
+                                        output_row = r + 3
+                                        # 列索引考虑是否显示行号
+                                        output_col = col_idx * 2 if show_row == 1 else col_idx
+                                        self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
+                            elif mode == 1:
+                                # Mode 1: 从筛选后的结果获取
+                                if col_idx < len(all_regex_matches):
+                                    regex_str = regex_raw_list[col_idx]
+                                    matches = list(re.finditer(regex_str, input_text))
+                                    # 找到对应的匹配索引
+                                    target_line = int(final_row_numbers[col_idx][r])
+                                    for match_idx, (line_no, _) in enumerate(all_regex_matches[col_idx]):
+                                        if line_no == target_line:
+                                            if match_idx < len(matches):
+                                                m = matches[match_idx]
+                                                start_pos = f"1.0+{m.start()}c"
+                                                end_pos = f"1.0+{m.end()}c"
+                                                output_row = r + 3
+                                                output_col = col_idx * 2 if show_row == 1 else col_idx
+                                                self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
+                                            break
+                        
                         row_parts.append(final_columns[col_idx][r] if r < len(final_columns[col_idx]) else "")
                     result_rows.append("\t\t".join(row_parts))
                 
@@ -1857,6 +1930,299 @@ class MainGUI(tk.Tk):
         tk.Label(top, text="If this tool saved your time,").pack()
         tk.Label(top, text="feel free to buy me a coffee.").pack()
         tk.Label(top, text="Your support keeps the project going!").pack()
+
+    def enable_drag_drop(self):
+        """启用拖放文件功能"""
+        # Windows 系统支持 DND
+        try:
+            self.left_text_widget.drop_target_register('DND_Files')
+            self.left_text_widget.dnd_bind('<<Drop>>', self.on_drop)
+        except:
+            # 如果上面的方法不可用，使用 tkinterdnd2 方式
+            try:
+                from tkinterdnd2 import DND_FILES, TkinterDnD
+                self.left_text_widget.drop_target_register(DND_FILES)
+                self.left_text_widget.dnd_bind('<<Drop>>', self.on_drop)
+            except ImportError:
+                # 如果没有 tkinterdnd2，使用原生 tkinter 方法
+                self.left_text_widget.bind('<Button-1>', self.on_text_click)
+
+    def on_drop(self, event):
+        """处理拖放事件"""
+        try:
+            # 获取拖放的文件路径
+            files = event.data
+            
+            # 处理文件路径（可能包含花括号或多个文件）
+            if isinstance(files, str):
+                # 移除花括号
+                files = files.strip('{}').strip()
+                # 分割多个文件（如果有）
+                file_list = files.split('} {')
+                file_path = file_list[0].strip()
+            else:
+                file_path = str(files)
+            
+            # 读取文件内容
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 清空已有内容和高亮
+            self.left_text_widget.delete("1.0", tk.END)
+            
+            if hasattr(self, "highlight_items"):
+                for item in self.highlight_items:
+                    tag = item.get("tag")
+                    if tag:
+                        try:
+                            self.left_text_widget.tag_remove(tag, "1.0", tk.END)
+                            self.left_text_widget.tag_delete(tag)
+                        except Exception:
+                            pass
+                self.highlight_items.clear()
+            
+            # 插入新内容
+            self.left_text_widget.insert(tk.END, content)
+            self.input_string_content = content
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load file:\n{e}")
+        
+        return 'break'
+
+    def on_text_click(self, event):
+        """备用方法：处理点击事件（如果拖放不可用）"""
+        pass
+
+    def show_find_dialog(self, event=None):
+        """显示查找对话框"""
+        if self.find_window and self.find_window.winfo_exists():
+            self.find_window.lift()
+            self.find_window.focus()
+            return "break"
+        
+        self.find_window = tk.Toplevel(self)
+        self.find_window.title("Find")
+        self.find_window.geometry("450x120")
+        self.find_window.resizable(False, False)
+        
+        self.find_window.transient(self)
+        # 移除 grab_set，允许切换回主窗口
+        
+        ttk.Label(self.find_window, text="Find:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        
+        self.search_combobox = ttk.Combobox(self.find_window, values=self.search_history, width=40)
+        self.search_combobox.grid(row=0, column=1, padx=10, pady=10, columnspan=3)
+        self.search_combobox.focus()
+        
+        self.search_combobox.bind("<Return>", lambda e: self.find_next())
+        
+        # Find Previous 在左侧
+        find_prev_btn = ttk.Button(self.find_window, text="Find Previous", command=self.find_previous, width=15)
+        find_prev_btn.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # Find Next 在中间
+        find_next_btn = ttk.Button(self.find_window, text="Find Next", command=self.find_next, width=15)
+        find_next_btn.grid(row=1, column=2, padx=5, pady=5)
+        
+        # Count 按钮在右侧
+        count_btn = ttk.Button(self.find_window, text="Count", command=self.count_matches, width=10)
+        count_btn.grid(row=1, column=3, padx=5, pady=5, sticky="e")
+        
+        # 底部状态标签（预留位置）
+        self.find_status_label = ttk.Label(self.find_window, text="", foreground="blue")
+        self.find_status_label.grid(row=2, column=1, columnspan=3, padx=10, pady=5, sticky="w")
+        
+        return "break"
+
+    def find_next(self):
+        """从当前光标位置向后查找"""
+        search_text = self.search_combobox.get().strip()
+        
+        if not search_text:
+            messagebox.showwarning("Find", "Please enter search text")
+            return
+        
+        self._update_search_history(search_text)
+        
+        current_pos = self.left_text_widget.index(tk.INSERT)
+        
+        pos = self.left_text_widget.search(search_text, current_pos, tk.END, nocase=True)
+        
+        if pos:
+            end_pos = f"{pos}+{len(search_text)}c"
+            self.left_text_widget.mark_set(tk.INSERT, end_pos)
+            
+            # 选中找到的文本
+            self.left_text_widget.tag_remove("sel", "1.0", tk.END)
+            self.left_text_widget.tag_add("sel", pos, end_pos)
+            
+            # 计算行号
+            line_num = int(pos.split('.')[0])
+            total_lines = int(self.left_text_widget.index('end-1c').split('.')[0])
+            
+            # 更新状态显示
+            if hasattr(self, 'find_status_label'):
+                self.find_status_label.config(text=f"Line {line_num}/{total_lines}")
+            
+            self.left_text_widget.see(end_pos)
+            self.left_text_widget.focus()
+        else:
+            pos = self.left_text_widget.search(search_text, "1.0", current_pos, nocase=True)
+            if pos:
+                end_pos = f"{pos}+{len(search_text)}c"
+                self.left_text_widget.mark_set(tk.INSERT, end_pos)
+                self.left_text_widget.tag_remove("sel", "1.0", tk.END)
+                self.left_text_widget.tag_add("sel", pos, end_pos)
+                
+                line_num = int(pos.split('.')[0])
+                total_lines = int(self.left_text_widget.index('end-1c').split('.')[0])
+                
+                if hasattr(self, 'find_status_label'):
+                    self.find_status_label.config(text=f"Line {line_num}/{total_lines} (wrapped)")
+                
+                self.left_text_widget.see(end_pos)
+                self.left_text_widget.focus()
+            else:
+                if hasattr(self, 'find_status_label'):
+                    self.find_status_label.config(text=f"'{search_text}' not found")
+
+    def find_previous(self):
+        """从当前光标位置向前查找"""
+        search_text = self.search_combobox.get().strip()
+        
+        if not search_text:
+            messagebox.showwarning("Find", "Please enter search text")
+            return
+        
+        self._update_search_history(search_text)
+        
+        current_pos = self.left_text_widget.index(tk.INSERT)
+        
+        pos = self.left_text_widget.search(search_text, current_pos, "1.0", backwards=True, nocase=True)
+        
+        if pos:
+            end_pos = f"{pos}+{len(search_text)}c"
+            self.left_text_widget.mark_set(tk.INSERT, pos)
+            
+            # 选中找到的文本
+            self.left_text_widget.tag_remove("sel", "1.0", tk.END)
+            self.left_text_widget.tag_add("sel", pos, end_pos)
+            
+            # 计算行号
+            line_num = int(pos.split('.')[0])
+            total_lines = int(self.left_text_widget.index('end-1c').split('.')[0])
+            
+            # 更新状态显示
+            if hasattr(self, 'find_status_label'):
+                self.find_status_label.config(text=f"Line {line_num}/{total_lines}")
+            
+            self.left_text_widget.see(pos)
+            self.left_text_widget.focus()
+        else:
+            pos = self.left_text_widget.search(search_text, tk.END, current_pos, backwards=True, nocase=True)
+            if pos:
+                end_pos = f"{pos}+{len(search_text)}c"
+                self.left_text_widget.mark_set(tk.INSERT, pos)
+                self.left_text_widget.tag_remove("sel", "1.0", tk.END)
+                self.left_text_widget.tag_add("sel", pos, end_pos)
+                
+                line_num = int(pos.split('.')[0])
+                total_lines = int(self.left_text_widget.index('end-1c').split('.')[0])
+                
+                if hasattr(self, 'find_status_label'):
+                    self.find_status_label.config(text=f"Line {line_num}/{total_lines} (wrapped)")
+                
+                self.left_text_widget.see(pos)
+                self.left_text_widget.focus()
+            else:
+                if hasattr(self, 'find_status_label'):
+                    self.find_status_label.config(text=f"'{search_text}' not found")
+
+    def _update_search_history(self, search_text):
+        """更新搜索历史记录"""
+        if search_text in self.search_history:
+            self.search_history.remove(search_text)
+        
+        self.search_history.insert(0, search_text)
+        
+        if len(self.search_history) > 10:
+            self.search_history = self.search_history[:10]
+        
+        if hasattr(self, 'search_combobox'):
+            self.search_combobox['values'] = self.search_history
+
+    def count_matches(self):
+        """统计匹配次数"""
+        search_text = self.search_combobox.get().strip()
+        
+        if not search_text:
+            messagebox.showwarning("Find", "Please enter search text")
+            return
+        
+        self._update_search_history(search_text)
+        
+        # 获取所有文本
+        all_text = self.left_text_widget.get("1.0", tk.END)
+        
+        # 统计出现次数（大小写不敏感）
+        count = 0
+        start_pos = "1.0"
+        while True:
+            pos = self.left_text_widget.search(search_text, start_pos, tk.END, nocase=True)
+            if not pos:
+                break
+            count += 1
+            start_pos = f"{pos}+1c"
+        
+        # 显示结果
+        if hasattr(self, 'find_status_label'):
+            self.find_status_label.config(text=f"Found {count} occurrence(s) of '{search_text}'")
+    
+    def update_line_number_display(self, event=None):
+        """更新左侧文本框的行号显示"""
+        try:
+            # 获取当前光标位置
+            cursor_pos = self.left_text_widget.index(tk.INSERT)
+            current_line = int(cursor_pos.split('.')[0])
+            
+            # 获取总行数
+            total_lines = int(self.left_text_widget.index('end-1c').split('.')[0])
+            
+            # 更新标签
+            self.left_line_number_label.config(text=f"Current Row: {current_line}/{total_lines}")
+        except Exception:
+            pass
+    
+    def on_right_text_double_click(self, event):
+        """处理右侧文本框的双击事件，定位到左侧对应位置"""
+        try:
+            # 获取双击位置
+            index = self.right_text_widget.index(f"@{event.x},{event.y}")
+            row, col_char = map(int, index.split('.'))
+            
+            # 跳过表头和分隔线
+            if row < 3:
+                return
+            
+            # 计算列索引（通过统计制表符数量）
+            line_text = self.right_text_widget.get(f"{row}.0", f"{row}.{col_char}")
+            col_index = line_text.count('\t\t')
+            
+            # 查找映射
+            if (row, col_index) in self.match_positions:
+                start_pos, end_pos = self.match_positions[(row, col_index)]
+                
+                # 选中左侧文本
+                self.left_text_widget.tag_remove("sel", "1.0", tk.END)
+                self.left_text_widget.tag_add("sel", start_pos, end_pos)
+                
+                # 移动光标并滚动到可见位置
+                self.left_text_widget.mark_set(tk.INSERT, start_pos)
+                self.left_text_widget.see(start_pos)
+                self.left_text_widget.focus_set()
+        except Exception as e:
+            pass  # 静默失败
 
 if __name__ == "__main__":
     app = MainGUI()
