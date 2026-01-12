@@ -12,7 +12,7 @@ https://github.com/dakongwuxian/TextCatcher/releases
 
 
 如何使用：
-1、通过open file加载需要提取的txt文件；
+1、通过open file或拖动文件的方式加载需要提取的txt文件；
 2、选中需要匹配的文字，点击set as match按钮；
 3、选中已经设置为match的文字中需要提取的文字，点击set as capture；
 4、选中已经设置为match的文字中不需要匹配的可能会变化的字符，点击set as not care；
@@ -21,7 +21,9 @@ https://github.com/dakongwuxian/TextCatcher/releases
 7、如果勾选了match in sequence，不会每个regex单独匹配整个文本，而是会每个regex逐一匹配一次，然后继续匹配后方的文本；
 8、如果勾选了row number，会将每个匹配的结果的行号也显示在单独的一列中。
 9、通过set as match、set as capture、set as not care按钮编辑好的regex，可以通过save regex按键保存；
-10、通过save regex按键保存好的文件，也可以通脱load regex按键加载并匹配其他的文件。需要注意，要先打开文件，再加载regex。
+10、通过save regex按键保存好的文件，也可以通脱load regex按键加载并匹配其他的文件。需要注意，要先打开文件，再加载regex；
+11、在input中可以使用ctrl+F搜索内容和记数；
+12、双击output中的内容可以让input跳转到对应的内容。
 
 注意：
 1、set as match、set as capture、set as not care按钮会按照一定的规则转化文本，并不一定能完美的匹配用户的想法，可以转化后测试观察是否满足需求，如果不满足需要手动修改regex。
