@@ -241,7 +241,6 @@ class MainGUI(tk.Tk):
         
         # 绑定光标移动事件以更新行号显示
         self.left_text_widget.bind("<KeyRelease>", self.update_line_number_display)
-        self.left_text_widget.bind("<ButtonRelease-1>", self.update_line_number_display)
 
         # 右侧frame ——————————————————————————————————————————————————————————————————————————————————
 
@@ -517,10 +516,8 @@ class MainGUI(tk.Tk):
         self.last_text_content = current_text
 
     def bind_cursor_highlight_sync(self):
-        # 键盘移动光标
-        #self.left_text_widget.bind("<KeyRelease>", self.on_cursor_move_highlight)
         # 鼠标点击移动光标
-        self.left_text_widget.bind("<ButtonRelease>", self.on_cursor_move_highlight)
+        self.left_text_widget.bind("<ButtonRelease-1>", self.on_cursor_move_highlight)
 
     def on_cursor_move_highlight(self, event=None):
         # 获取光标当前索引
@@ -540,9 +537,14 @@ class MainGUI(tk.Tk):
                 self.regex_text_input.delete("1.0", tk.END)
                 self.regex_text_input.insert("1.0", item.get("regex", ""))
                 self.highlight_capture_groups()
+                # 同时更新行号显示
+                self.update_line_number_display()
                 return  # 找到后直接退出
         # 光标不在任何高亮段，则清空 regex_text_input 或保持原样
         # self.regex_text_input.delete(0, tk.END)
+        
+        # 同时更新行号显示
+        self.update_line_number_display()
 
     def mark_as_target_button_function(self):
         try:
@@ -1066,7 +1068,7 @@ class MainGUI(tk.Tk):
             self.right_text_widget.delete("1.0", "end")
 
             # --- 核心搜索阶段：所有模式都先执行全量匹配 ---
-            all_regex_matches = [] # 存储结构: [ [ (line_no, val), ... ], [ ... ] ]
+            all_regex_matches = [] # 存储结构: [ [ (line_no, val, match_obj), ... ], [ ... ] ]
             
             for regex_str in regex_raw_list:
                 try:
@@ -1092,8 +1094,8 @@ class MainGUI(tk.Tk):
                     else:
                         val = m.group(0).replace("\r", "<CR>").replace("\n", "<LF>")
                     
-                    # 存储元组：(行号整数, 显示字符串)
-                    col_data.append((current_line_count, val))
+                    # 存储元组：(行号整数, 显示字符串, match对象)
+                    col_data.append((current_line_count, val, m))
                 
                 all_regex_matches.append(col_data)
 
@@ -1119,7 +1121,7 @@ class MainGUI(tk.Tk):
                     temp_seq_nos = []
                     
                     # 第一个元素
-                    curr_line_no, curr_val = all_regex_matches[0][i]
+                    curr_line_no, curr_val, _ = all_regex_matches[0][i]
                     temp_seq_vals.append(curr_val)
                     temp_seq_nos.append(str(curr_line_no))
                     last_line_no = curr_line_no
@@ -1128,7 +1130,7 @@ class MainGUI(tk.Tk):
                     # 从第二个 regex 开始找第一个行号更大的
                     for next_col in all_regex_matches[1:]:
                         found_next = False
-                        for next_line_no, next_val in next_col:
+                        for next_line_no, next_val, _ in next_col:
                             if next_line_no > last_line_no:
                                 temp_seq_vals.append(next_val)
                                 temp_seq_nos.append(str(next_line_no))
@@ -1180,35 +1182,26 @@ class MainGUI(tk.Tk):
                             if mode == 0:
                                 # Mode 0: 直接从 all_regex_matches 获取
                                 if col_idx < len(all_regex_matches) and r < len(all_regex_matches[col_idx]):
-                                    line_no, _ = all_regex_matches[col_idx][r]
-                                    # 查找该行号对应的匹配对象
-                                    regex_str = regex_raw_list[col_idx]
-                                    matches = list(re.finditer(regex_str, input_text))
-                                    if r < len(matches):
-                                        m = matches[r]
-                                        start_pos = f"1.0+{m.start()}c"
-                                        end_pos = f"1.0+{m.end()}c"
-                                        # 行号从3开始（表头+分隔线+数据）
-                                        output_row = r + 3
-                                        # 列索引考虑是否显示行号
-                                        output_col = col_idx * 2 if show_row == 1 else col_idx
-                                        self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
+                                    line_no, _, m = all_regex_matches[col_idx][r]
+                                    start_pos = f"1.0+{m.start()}c"
+                                    end_pos = f"1.0+{m.end()}c"
+                                    # 行号从3开始（表头+分隔线+数据）
+                                    output_row = r + 3
+                                    # 列索引考虑是否显示行号
+                                    output_col = col_idx * 2 if show_row == 1 else col_idx
+                                    self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
                             elif mode == 1:
                                 # Mode 1: 从筛选后的结果获取
                                 if col_idx < len(all_regex_matches):
-                                    regex_str = regex_raw_list[col_idx]
-                                    matches = list(re.finditer(regex_str, input_text))
                                     # 找到对应的匹配索引
                                     target_line = int(final_row_numbers[col_idx][r])
-                                    for match_idx, (line_no, _) in enumerate(all_regex_matches[col_idx]):
+                                    for match_idx, (line_no, _, m) in enumerate(all_regex_matches[col_idx]):
                                         if line_no == target_line:
-                                            if match_idx < len(matches):
-                                                m = matches[match_idx]
-                                                start_pos = f"1.0+{m.start()}c"
-                                                end_pos = f"1.0+{m.end()}c"
-                                                output_row = r + 3
-                                                output_col = col_idx * 2 if show_row == 1 else col_idx
-                                                self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
+                                            start_pos = f"1.0+{m.start()}c"
+                                            end_pos = f"1.0+{m.end()}c"
+                                            output_row = r + 3
+                                            output_col = col_idx * 2 if show_row == 1 else col_idx
+                                            self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
                                             break
                         
                         row_parts.append(final_columns[col_idx][r] if r < len(final_columns[col_idx]) else "")
@@ -1704,17 +1697,11 @@ class MainGUI(tk.Tk):
 
         # target_item 是 (start, end, it)
         tgt_start = target_item[0]
-        # 计算行首位置
-        try:
-            line_no = int(str(tgt_start).split(".")[0])
-            line_start = f"{line_no}.0"
-        except Exception:
-            line_start = tgt_start  # fallback
 
         # 移动光标并滚动视图
         try:
-            self.left_text_widget.mark_set("insert", line_start)
-            self.left_text_widget.see(line_start)
+            self.left_text_widget.mark_set("insert", tgt_start)
+            self.left_text_widget.see(tgt_start)
             # 取消选区，确保视觉正常
             try:
                 self.left_text_widget.tag_remove("sel", "1.0", "end")
@@ -1798,15 +1785,10 @@ class MainGUI(tk.Tk):
                 target_item = items[next_index]
 
         tgt_start = target_item[0]
-        try:
-            line_no = int(str(tgt_start).split(".")[0])
-            line_start = f"{line_no}.0"
-        except Exception:
-            line_start = tgt_start
 
         try:
-            self.left_text_widget.mark_set("insert", line_start)
-            self.left_text_widget.see(line_start)
+            self.left_text_widget.mark_set("insert", tgt_start)
+            self.left_text_widget.see(tgt_start)
             try:
                 self.left_text_widget.tag_remove("sel", "1.0", "end")
             except Exception:
@@ -2221,6 +2203,9 @@ class MainGUI(tk.Tk):
                 self.left_text_widget.mark_set(tk.INSERT, start_pos)
                 self.left_text_widget.see(start_pos)
                 self.left_text_widget.focus_set()
+                
+                # 更新行号显示
+                self.update_line_number_display()
         except Exception as e:
             pass  # 静默失败
 
