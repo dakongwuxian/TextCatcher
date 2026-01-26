@@ -1,3 +1,7 @@
+
+<img width="1208" height="858" alt="image" src="https://github.com/user-attachments/assets/57a20d1f-de2c-40c6-9d31-3526a8b4061d" />
+
+
 TextCatcher read me document - 最后由 吴宪 编辑于 2025.12.09
 
 TextCatcher-RegexTester 是一个基于Python的正则表达式文本提取工具，可帮助用户从冗长的文本中提取出想要的文本，匹配的模式可以通过选择文本和点击按键的方式自动创建，正则表达式可以简洁的生成。如果需要匹配的内容较为复杂，也可以手动修改正则表达式。
