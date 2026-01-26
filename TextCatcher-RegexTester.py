@@ -11,7 +11,9 @@
 """
 # 标准库导入
 import base64
+import os
 import re
+import tempfile
 import threading
 import webbrowser
 from io import BytesIO
@@ -19,7 +21,20 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 # 第三方库导入
-from PIL import Image, ImageTk 
+from PIL import Image, ImageTk
+
+# 可选的第三方库
+try:
+    import openpyxl
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    TKINTERDND2_AVAILABLE = True
+except ImportError:
+    TKINTERDND2_AVAILABLE = False 
 
 # 嵌入的二维码 base64 字符串（PNG 格式）
 img_base64 = (
@@ -258,13 +273,15 @@ class MainGUI(tk.Tk):
         self.run_button.grid(row=0,column=0,sticky="w",padx=5)
         self.save_as_button = ttk.Button(self.right_btn_frame,text="Save as..",command=lambda: self.save_as_button_function())
         self.save_as_button.grid(row=0,column=3,sticky="w",padx=5)
+        self.open_in_excel_button = ttk.Button(self.right_btn_frame,text="Open in Excel",command=lambda: self.open_in_excel_button_function())
+        self.open_in_excel_button.grid(row=0,column=4,sticky="w",padx=5)
 
         self.match_mode_value = tk.IntVar(value=0)
-        self.match_mode_checkbutton = ttk.Checkbutton(self.right_btn_frame,text="Match in Sequence",variable=self.match_mode_value)
+        self.match_mode_checkbutton = ttk.Checkbutton(self.right_btn_frame,text="in Sequence",variable=self.match_mode_value)
         self.match_mode_checkbutton.grid(row=0,column=1,sticky="w",padx=5)
 
         self.show_row_number_value = tk.IntVar(value=0)
-        self.show_row_number_checkbutton = ttk.Checkbutton(self.right_btn_frame,text="Capture Row Num",variable=self.show_row_number_value)
+        self.show_row_number_checkbutton = ttk.Checkbutton(self.right_btn_frame,text="Row Num",variable=self.show_row_number_value)
         self.show_row_number_checkbutton.grid(row=0,column=2,sticky="w",padx=5)
 
 
@@ -1851,27 +1868,91 @@ class MainGUI(tk.Tk):
         try:
             # 1. 获取文本内容
             content = self.right_text_widget.get("1.0", "end-1c")
+            
+            if not content.strip():
+                messagebox.showwarning("Warning", "Capture Data Area is empty!")
+                return
 
-            # 2. 选择保存位置
+            # 2. 选择保存位置和格式
             file_path = filedialog.asksaveasfilename(
                 title="Save As",
                 defaultextension=".txt",
-                filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+                filetypes=[("Text Files", "*.txt"), ("Excel Files", "*.xlsx"), ("All Files", "*.*")]
             )
 
             # 用户取消
             if not file_path:
-                return  
-
-            # 3. 写文件
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
-
-            # 4. 成功提示
-            messagebox.showinfo("Saved", f"File saved to:\n{file_path}")
+                return
+            
+            # 3. 根据文件扩展名保存
+            if file_path.endswith('.xlsx'):
+                # 保存为 Excel
+                if not OPENPYXL_AVAILABLE:
+                    messagebox.showerror("Error", "openpyxl library not found.\nPlease install it: pip install openpyxl")
+                    return
+                
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                
+                lines = content.split('\n')
+                for row_idx, line in enumerate(lines, start=1):
+                    if line.strip():
+                        cells = line.split('\t\t')
+                        for col_idx, cell_value in enumerate(cells, start=1):
+                            ws.cell(row=row_idx, column=col_idx, value=cell_value)
+                
+                wb.save(file_path)
+                messagebox.showinfo("Saved", f"File saved to:\n{file_path}")
+            else:
+                # 保存为文本文件
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                messagebox.showinfo("Saved", f"File saved to:\n{file_path}")
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save file:\n{e}")
+
+    def open_in_excel_button_function(self):
+        if not OPENPYXL_AVAILABLE:
+            messagebox.showerror("Error", "openpyxl library not found.\nPlease install it: pip install openpyxl")
+            return
+        
+        try:
+            # 获取右侧文本框内容
+            content = self.right_text_widget.get("1.0", "end-1c")
+            
+            if not content.strip():
+                messagebox.showwarning("Warning", "Capture Data Area is empty!")
+                return
+            
+            # 创建新的 Excel 工作簿
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            
+            # 按行分割内容
+            lines = content.split('\n')
+            
+            # 写入 Excel
+            for row_idx, line in enumerate(lines, start=1):
+                if line.strip():  # 跳过空行
+                    # 按制表符分割列
+                    cells = line.split('\t\t')
+                    for col_idx, cell_value in enumerate(cells, start=1):
+                        ws.cell(row=row_idx, column=col_idx, value=cell_value)
+            
+            # 创建临时文件
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+            temp_path = temp_file.name
+            temp_file.close()
+            
+            # 保存 Excel 文件
+            wb.save(temp_path)
+            
+            # 用系统默认程序打开
+            os.startfile(temp_path)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open in Excel:\n{e}")
 
     def show_about_window(self):
         top = tk.Toplevel(self)
@@ -1911,7 +1992,7 @@ class MainGUI(tk.Tk):
 
         tk.Label(top, text="If this tool saved your time,").pack()
         tk.Label(top, text="feel free to buy me a coffee.").pack()
-        tk.Label(top, text="Your support keeps the project going!").pack()
+        tk.Label(top, text="Your support means a lot to me!").pack()
 
     def enable_drag_drop(self):
         """启用拖放文件功能"""
@@ -1921,11 +2002,10 @@ class MainGUI(tk.Tk):
             self.left_text_widget.dnd_bind('<<Drop>>', self.on_drop)
         except:
             # 如果上面的方法不可用，使用 tkinterdnd2 方式
-            try:
-                from tkinterdnd2 import DND_FILES, TkinterDnD
+            if TKINTERDND2_AVAILABLE:
                 self.left_text_widget.drop_target_register(DND_FILES)
                 self.left_text_widget.dnd_bind('<<Drop>>', self.on_drop)
-            except ImportError:
+            else:
                 # 如果没有 tkinterdnd2，使用原生 tkinter 方法
                 self.left_text_widget.bind('<Button-1>', self.on_text_click)
 

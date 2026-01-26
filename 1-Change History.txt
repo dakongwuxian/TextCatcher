@@ -1,3 +1,8 @@
+2026.1.26
+1、增加了save as的可选文件格式，增加了excel的xlxs格式。
+2、增加了open in excel按钮，可以直接在excel中浏览当前结果的内容。
+3、修改了match in sequence和capture row number的勾选框文字，简化为in Sequence和Row Number。
+
 2026.1.12
 1、增加了拖动文件加载的功能；
 2、增加了input text area内搜索的功能，ctrl+F可以打开查找对话框；
