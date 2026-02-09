@@ -2,24 +2,17 @@
 <img width="1507" height="1070" alt="image" src="https://github.com/user-attachments/assets/1da17378-e46e-4161-9033-5770878ee838" />
 
 
-TextCatcher read me document - 最后由 吴宪 编辑于 2025.12.09
-
-TextCatcher-RegexTester 是一个基于Python的正则表达式文本提取工具，可帮助用户从冗长的文本中提取出想要的文本，匹配的模式可以通过选择文本和点击按键的方式自动创建，正则表达式可以简洁的生成。如果需要匹配的内容较为复杂，也可以手动修改正则表达式。
-
-本软件由Xian Wu个人开发，为单一exe文件的GUI程序，可在windows系统上运行（如果要在其他操作系统上运行需要使用原代码重新打包），使用python 3.10和VS2022的环境，借助了ChatGPT和Gemini的帮助。
-
-如果有任何问题和建议，可以联系 xian.wu@ericsson.com 或 dakongwuxian@gmail.com 。
-
-exe文件的下载链接如下：
-
-https://github.com/dakongwuxian/TextCatcher/releases
-
 TextCatcher read me document - 最后由 吴宪 编辑于 2026.02.09
 
 TextCatcher-RegexTester 是一个基于Python的正则表达式文本提取工具，可帮助用户从冗长的文本中提取出想要的文本，匹配的模式可以通过选择文本和点击按键的方式自动创建，正则表达式可以简洁的生成。如果需要匹配的内容较为复杂，也可以手动修改正则表达式。
 
 本软件由Xian Wu个人开发，为单一exe文件的GUI程序，可在windows系统上运行（如果要在其他操作系统上运行需要使用原代码重新打包），使用python 3.10和VS2022的环境，借助了ChatGPT、Gemini和Amazon Q的帮助。
 
+如果有任何问题和建议，可以联系 xian.wu@ericsson.com 或 dakongwuxian@gmail.com 。
+
+exe文件的下载链接如下：
+
+https://github.com/dakongwuxian/TextCatcher/releases
 
 如何使用：
 1、通过open file加载需要提取的txt文件；
