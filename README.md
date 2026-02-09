@@ -1,5 +1,5 @@
 
-<img width="1507" height="1070" alt="image" src="https://github.com/user-attachments/assets/1da17378-e46e-4161-9033-5770878ee838" />
+<img width="1508" height="1068" alt="image" src="https://github.com/user-attachments/assets/4e4bc48c-2ea1-4f52-8024-b15d40a84260" />
 
 
 TextCatcher read me document - 最后由 吴宪 编辑于 2026.02.09
