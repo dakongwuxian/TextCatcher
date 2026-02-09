@@ -14,7 +14,6 @@ import base64
 import os
 import re
 import tempfile
-import threading
 import webbrowser
 from io import BytesIO
 import tkinter as tk
@@ -96,7 +95,7 @@ class MainGUI(tk.Tk):
         self.about_menu.add_command(label="Developed by Xian.Wu", state="disabled")
         self.about_menu.add_command(label="dakongwuxian@gmail.com", state="disabled")
 
-        self.about_menu.add_command(label="Ver. 20260112", state="disabled")
+        self.about_menu.add_command(label="Ver. 20260209", state="disabled")
 
         self.about_menu.add_command(label="Buy me a coffee ☕",command=self.show_about_window,state="normal")
 
@@ -104,6 +103,7 @@ class MainGUI(tk.Tk):
         # 用于处理input text中的文本的信息
         self.input_string_content = None
         self.highlight_items = []
+        self.regex_counter = 0
         
         # 查找功能相关
         self.search_history = []
@@ -120,52 +120,69 @@ class MainGUI(tk.Tk):
         # 2列均分
         self.main_frame.columnconfigure(0, weight=1, uniform="col")
         self.main_frame.columnconfigure(1, weight=1, uniform="col")
-        #main_frame.columnconfigure(2, weight=1, uniform="col")
 
         self.main_frame.rowconfigure(0, weight=0)
-        #self.main_frame.rowconfigure(0, minsize=100)
         self.main_frame.rowconfigure(1, weight=1)
 
         # 上方frame ————————————————————————————————————————————————————————————————————————————————————
 
-        self.up_frame = ttk.Frame(self.main_frame) #, style='Border.TFrame'
+        self.up_frame = ttk.Frame(self.main_frame)
         self.up_frame.grid(row=0, column=0,sticky="nsew", padx=5,columnspan=2)
-        # 让 up_frame 的列的权重为1, 才能实现后面的sticky ew的自动占满
         self.up_frame.columnconfigure(0, weight=1)
 
         self.up_frame.rowconfigure(0,weight=0)
         self.up_frame.rowconfigure(1,weight=0)
 
-        # self.up_frame.rowconfigure(1,weight=0)
-        # self.up_frame.rowconfigure(2,weight=1)
-        # self.up_frame.rowconfigure(3,weight=0)
-
         self.regular_expression_area_label = ttk.Label(self.up_frame, text="Regular Expression",font=("微软雅黑", 11,"bold"))
         self.regular_expression_area_label.grid(row=0,column=0,sticky="w", pady=5)
 
-        self.up_button_frame = ttk.Frame(self.up_frame) #, style='Border.TFrame'
+        self.up_button_frame = ttk.Frame(self.up_frame)
         self.up_button_frame.grid(row=1, column=0,sticky="ew", padx=5)
-        self.up_button_frame.columnconfigure(4, weight=1)
+        self.up_button_frame.columnconfigure(2, weight=1)
 
 
-        self.load_regex_button = ttk.Button(self.up_button_frame,text="Load Regex from File",command=lambda: self.load_regex_button_function())
+        self.load_regex_button = ttk.Button(self.up_button_frame,text="Load Regex from File",command=self.load_regex_button_function)
         self.load_regex_button.grid(row=0,column=0,sticky="w",padx=5)
-        self.save_regex_button = ttk.Button(self.up_button_frame,text="Save Regex as File",command=lambda: self.save_regex_button_function())
+        self.save_regex_button = ttk.Button(self.up_button_frame,text="Save Regex as File",command=self.save_regex_button_function)
         self.save_regex_button.grid(row=0,column=1,sticky="w",padx=5)
-        self.focus_to_last_regex_button = ttk.Button(self.up_button_frame,text="↑",command=lambda: self.focus_to_last_regex_button_function())
-        self.focus_to_last_regex_button.grid(row=0,column=2,sticky="w",padx=5)
-        self.focus_to_next_regex_button = ttk.Button(self.up_button_frame,text="↓",command=lambda: self.focus_to_next_regex_button_function())
-        self.focus_to_next_regex_button.grid(row=0,column=3,sticky="w",padx=5)
 
-        self.show_regex_table_button = ttk.Button(self.up_button_frame,text="Common Regex",command=lambda: self.show_regex_table_function())
-        self.show_regex_table_button.grid(row=0,column=5,sticky="e",padx=5)
-        self.open_regex_tutorial_button = ttk.Button(self.up_button_frame,text="Regex Tutorial",command=lambda: self.open_regex_tutorial_function())
-        self.open_regex_tutorial_button.grid(row=0,column=6,sticky="e",padx=5)
+        self.show_regex_table_button = ttk.Button(self.up_button_frame,text="Common Regex",command=self.show_regex_table_function)
+        self.show_regex_table_button.grid(row=0,column=2,sticky="e",padx=5)
+        self.open_regex_tutorial_button = ttk.Button(self.up_button_frame,text="Regex Tutorial",command=self.open_regex_tutorial_function)
+        self.open_regex_tutorial_button.grid(row=0,column=3,sticky="e",padx=5)
+        
+        self.up_button_frame2 = ttk.Frame(self.up_frame)
+        self.up_button_frame2.grid(row=2, column=0,sticky="w", padx=5, pady=(5,0))
+        
+        self.navigate_to_label = ttk.Label(self.up_button_frame2, text="Navigate to")
+        self.navigate_to_label.grid(row=0,column=0,sticky="w",padx=(5,0))
+        self.focus_to_last_regex_button = ttk.Button(self.up_button_frame2,text="◀ Prev",command=self.focus_to_last_regex_button_function)
+        self.focus_to_last_regex_button.grid(row=0,column=1,sticky="w",padx=5)
+        self.focus_to_next_regex_button = ttk.Button(self.up_button_frame2,text="Next ▶",command=self.focus_to_next_regex_button_function)
+        self.focus_to_next_regex_button.grid(row=0,column=2,sticky="w",padx=5)
+        
+        self.regex_order_label = ttk.Label(self.up_button_frame2, text="Regex Order:")
+        self.regex_order_label.grid(row=0,column=3,sticky="w",padx=(5,0))
+        self.regex_order_entry = ttk.Entry(self.up_button_frame2, width=8, state="readonly", justify="center")
+        self.regex_order_entry.grid(row=0,column=4,sticky="w",padx=(0,5))
+        
+        self.regex_name_label = ttk.Label(self.up_button_frame2, text="Regex Name:")
+        self.regex_name_label.grid(row=0,column=5,sticky="w",padx=(5,0))
+        self.regex_name_entry = ttk.Entry(self.up_button_frame2, width=20)
+        self.regex_name_entry.grid(row=0,column=6,sticky="w",padx=(0,5))
+        self.regex_name_entry.bind("<KeyRelease>", self.on_regex_name_changed)
+        
+        self.change_order_label = ttk.Label(self.up_button_frame2, text="Change Order")
+        self.change_order_label.grid(row=0,column=7,sticky="w",padx=(5,0))
+        self.move_front_button = ttk.Button(self.up_button_frame2,text="-1",command=self.move_front_button_function)
+        self.move_front_button.grid(row=0,column=8,sticky="w",padx=5)
+        self.move_behind_button = ttk.Button(self.up_button_frame2,text="+1",command=self.move_behind_button_function)
+        self.move_behind_button.grid(row=0,column=9,sticky="w",padx=5)
 
         # 用多行文本框显示多个正则表达式
         # ====== 多行文本框区域 ======
         self.up_text_frame = ttk.Frame(self.up_frame)
-        self.up_text_frame.grid(row=2, column=0,sticky="ew",pady=10)
+        self.up_text_frame.grid(row=3, column=0,sticky="ew",pady=10)
         self.regex_text_scrollbar = ttk.Scrollbar(self.up_text_frame)
         self.regex_text_scrollbar.pack(side="right", fill="y")
         
@@ -175,12 +192,7 @@ class MainGUI(tk.Tk):
         # 设置捕获组高亮的tag
         self.regex_text_input.tag_configure("capture_group", foreground="#cc6600")
         self.regex_text_input.tag_configure("notcare", background="light gray",foreground="white")
-        # 自动高亮捕获组
-        #self.regex_text_input.bind("<KeyRelease>", lambda e: self.highlight_capture_groups())
-        # 绑定到 Text
         self.regex_text_input.bind("<KeyRelease>", self.update_highlight_items)
-
-        #self.regex_entry_notebook = ttk.Notebook(self.up_text_frame,)# 本身使用默认样式 'TNotebook' :contentReference[oaicite:5]{index=5}
 
 
         # 左侧frame ————————————————————————————————————————————————————————————————————————————
@@ -200,7 +212,7 @@ class MainGUI(tk.Tk):
         # ====== 按钮区域 ======
         self.left_btn_frame = ttk.Frame(self.left_frame)
         self.left_btn_frame.pack(fill="x", pady=5)
-        self.open_file_button = ttk.Button(self.left_btn_frame,text="Open File",command=lambda: self.open_file_button_function())
+        self.open_file_button = ttk.Button(self.left_btn_frame,text="Open File",command=self.open_file_button_function)
         self.open_file_button.grid(row=0,column=0,sticky="w",padx=5)
 
         style = ttk.Style()
@@ -209,7 +221,7 @@ class MainGUI(tk.Tk):
         style.map("Match.TButton",
                   foreground=[("active", "#1a5f99")])# 鼠标悬停颜色
 
-        self.mark_as_mark_button = ttk.Button(self.left_btn_frame,style="Match.TButton",text="Set as Match",command=lambda: self.mark_as_mark_button_function())
+        self.mark_as_mark_button = ttk.Button(self.left_btn_frame,style="Match.TButton",text="Set as Match",command=self.mark_as_mark_button_function)
         self.mark_as_mark_button.grid(row=0,column=1,sticky="w",padx=5)
 
         style = ttk.Style()
@@ -218,7 +230,7 @@ class MainGUI(tk.Tk):
         style.map("Target.TButton",
                   foreground=[("active", "#cc6600")])# 鼠标悬停颜色
 
-        self.mark_as_target_button = ttk.Button(self.left_btn_frame,style="Target.TButton",text="Set as Capture",command=lambda: self.mark_as_target_button_function())
+        self.mark_as_target_button = ttk.Button(self.left_btn_frame,style="Target.TButton",text="Set as Capture",command=self.mark_as_target_button_function)
         self.mark_as_target_button.grid(row=0,column=2,sticky="w",padx=5)
 
         style = ttk.Style()
@@ -227,9 +239,9 @@ class MainGUI(tk.Tk):
         style.map("Target.TButton",
                   foreground=[("active", "#666666")])# 鼠标悬停颜色
 
-        self.mark_as_not_care_button = ttk.Button(self.left_btn_frame,style="NotCare.TButton",text="Set as Not Care",command=lambda: self.mark_as_not_care_button_function())
+        self.mark_as_not_care_button = ttk.Button(self.left_btn_frame,style="NotCare.TButton",text="Set as Not Care",command=self.mark_as_not_care_button_function)
         self.mark_as_not_care_button.grid(row=0,column=3,sticky="w",padx=5)
-        self.unmark_button = ttk.Button(self.left_btn_frame,text="Unmark",command=lambda: self.unmark_button_function())
+        self.unmark_button = ttk.Button(self.left_btn_frame,text="Unmark",command=self.unmark_button_function)
         self.unmark_button.grid(row=0,column=4,sticky="w",padx=5)
 
         # ====== 多行文本框区域 ======
@@ -269,11 +281,11 @@ class MainGUI(tk.Tk):
         self.right_btn_frame = ttk.Frame(self.right_frame)
         self.right_btn_frame.pack(fill="x", pady=5)
 
-        self.run_button = ttk.Button(self.right_btn_frame,text="Run",command=lambda: self.run_button_function())
+        self.run_button = ttk.Button(self.right_btn_frame,text="Run",command=self.run_button_function)
         self.run_button.grid(row=0,column=0,sticky="w",padx=5)
-        self.save_as_button = ttk.Button(self.right_btn_frame,text="Save as..",command=lambda: self.save_as_button_function())
+        self.save_as_button = ttk.Button(self.right_btn_frame,text="Save as..",command=self.save_as_button_function)
         self.save_as_button.grid(row=0,column=3,sticky="w",padx=5)
-        self.open_in_excel_button = ttk.Button(self.right_btn_frame,text="Open in Excel",command=lambda: self.open_in_excel_button_function())
+        self.open_in_excel_button = ttk.Button(self.right_btn_frame,text="Open in Excel",command=self.open_in_excel_button_function)
         self.open_in_excel_button.grid(row=0,column=4,sticky="w",padx=5)
 
         self.match_mode_value = tk.IntVar(value=0)
@@ -358,6 +370,8 @@ class MainGUI(tk.Tk):
         # ------------------------------
         # 不再生成随机 tag，改为统一用 apply_segment_tags
         # ------------------------------
+        self.regex_counter += 1
+        
         new_item = {
             "start": sel_start,
             "end": sel_end,
@@ -366,6 +380,8 @@ class MainGUI(tk.Tk):
                 "text": selected_text,
                 "type": "match"
             }],
+            "order": self.regex_counter,
+            "name": selected_text[:50]
         }
 
         # 使用统一 tag 管理函数
@@ -380,6 +396,9 @@ class MainGUI(tk.Tk):
 
         self.regex_text_input.delete("1.0", tk.END)
         self.regex_text_input.insert("1.0", regex_text)
+        
+        self.update_regex_order_display()
+        self.update_regex_name_display()
 
         self.left_text_widget.tag_remove("sel", "1.0", "end")
         self.left_text_widget.update_idletasks()
@@ -463,10 +482,10 @@ class MainGUI(tk.Tk):
                     i += 1
                 
                 # 计算正负 10 的区间
-                # 原本 1 个 -> {0, 11}
+                # 原本 1 个 -> {1, 11}
                 # 原本 13 个 -> {3, 23}
-                # 注意：下限不能小于 0
-                lower_bound = max(0, space_count - 10)
+                # 注意：下限不能小于 1
+                lower_bound = max(1, space_count - 10)
                 upper_bound = space_count + 10
                 
                 # 构建正则表达式，例如 \s{3,23}
@@ -537,7 +556,6 @@ class MainGUI(tk.Tk):
         self.left_text_widget.bind("<ButtonRelease-1>", self.on_cursor_move_highlight)
 
     def on_cursor_move_highlight(self, event=None):
-        # 获取光标当前索引
         cursor_index = self.left_text_widget.index(tk.INSERT)
 
         for item in getattr(self, "highlight_items", []):
@@ -545,22 +563,18 @@ class MainGUI(tk.Tk):
             end = item.get("end")
 
             if start is None or end is None:
-                continue  # 如果没有 start/end，就跳过
+                continue
 
-            # 判断光标是否在该段范围内
             if self.left_text_widget.compare(cursor_index, ">=", start) and \
                self.left_text_widget.compare(cursor_index, "<=", end):
-                # 更新 regex_text_input 为该高亮对应 regex
                 self.regex_text_input.delete("1.0", tk.END)
                 self.regex_text_input.insert("1.0", item.get("regex", ""))
                 self.highlight_capture_groups()
-                # 同时更新行号显示
+                self.update_regex_order_display()
+                self.update_regex_name_display()
                 self.update_line_number_display()
-                return  # 找到后直接退出
-        # 光标不在任何高亮段，则清空 regex_text_input 或保持原样
-        # self.regex_text_input.delete(0, tk.END)
+                return
         
-        # 同时更新行号显示
         self.update_line_number_display()
 
     def mark_as_target_button_function(self):
@@ -609,6 +623,8 @@ class MainGUI(tk.Tk):
         self.regex_text_input.insert("1.0", item["regex"])
 
         self.highlight_capture_groups()
+        self.update_regex_order_display()
+        self.update_regex_name_display()
 
     def mark_as_not_care_button_function(self):
         try:
@@ -732,18 +748,7 @@ class MainGUI(tk.Tk):
 
         # --- 3. 根据 segment 类型进行处理 ---
         if seg["type"] in ("capture", "notcare"):
-            # 这里调用你已有的正式函数
             self.unmark_segment(item, seg)
-
-            # # 更新右侧 regex 显示
-            # self.regex_text_input.delete("1.0", tk.END)
-            # self.regex_text_input.insert("1.0", item.get("regex", ""))
-
-            # # 高亮 group
-            # try:
-            #     self.highlight_capture_groups()
-            # except Exception:
-            #     pass
             return
 
         # ---------------------------------------------------------
@@ -924,150 +929,15 @@ class MainGUI(tk.Tk):
         except Exception:
             pass
 
-    def merge_adjacent_match_segments(self, item):
-        """
-        将 target_item 的主 match tag 覆盖的多个零碎区间合并为一个连续段
-        （Text widget 本身可以有多个 range，所以我们手动合并）
-        """
-        tag = item["tag"]
-        ranges = self.left_text_widget.tag_ranges(tag)
-
-        if not ranges:
-            return
-
-        # 将 ranges 转成 [(start, end), ...]
-        segments = []
-        for i in range(0, len(ranges), 2):
-            segments.append((ranges[i], ranges[i+1]))
-
-        # 根据 index 排序（避免顺序错乱）
-        segments.sort(key=lambda r: float(r[0]))
-
-        # 合并连续区间
-        merged = []
-        cur_start, cur_end = segments[0]
-
-        for s, e in segments[1:]:
-            if self.left_text_widget.compare(s, "<=", cur_end):
-                # 有重叠或紧邻 → 合并
-                cur_end = e
-            else:
-                merged.append((cur_start, cur_end))
-                cur_start, cur_end = s, e
-
-        merged.append((cur_start, cur_end))
-
-        # 清空原 tag
-        self.left_text_widget.tag_remove(tag, "1.0", "end")
-
-        # 添加合并后的区间
-        for s, e in merged:
-            self.left_text_widget.tag_add(tag, s, e)
-            # 更新 item 的 start/end（用第一个区间）
-            item["start"], item["end"] = merged[0]
-
-    def rebuild_regex_from_segments(self, item):
-        """
-        根据当前的匹配区间（含 capture / notcare）重新构建 regex
-        """
-        start = item["start"]
-        end = item["end"]
-        hl_text = self.left_text_widget.get(start, end)
-
-        regex = ""
-        cur_index = 0
-
-        # 按 capture 排序
-        caps = sorted(item.get("captures", []),
-                      key=lambda c: float(c["start"]))
-
-        for cap in caps:
-            rel_s = self.left_text_widget.count(start, cap["start"], "chars")[0]
-            rel_e = self.left_text_widget.count(start, cap["end"], "chars")[0]
-
-            # 普通区域
-            normal_text = hl_text[cur_index:rel_s]
-            regex += self.translate_to_regex(normal_text)
-
-            # capture / notcare 段
-            regex += cap["capture_regex"]
-
-            cur_index = rel_e
-
-        # 最后尾部部分
-        tail_text = hl_text[cur_index:]
-        regex += self.translate_to_regex(tail_text)
-
-        item["regex"] = regex
-
-    def merge_regex_nodes(self,pattern):
-        """
-        将正则表达式解析成节点列表，并合并相同类型的连续字符
-        节点类型：
-            - fixed: 固定字符
-            - digit: 数字
-            - word: 英文字符
-            - chinese: 中文字符
-            - space: 空白符
-            - special: 其他特殊字符
-        返回：
-            [{"type": 类型, "content": 内容, "quantifier": 量词}, ...]
-        """
-        nodes = []
-        # 匹配中文、英文、数字、空白、特殊字符
-        i = 0
-        n = len(pattern)
-    
-        def get_type(c):
-            if c.isdigit():
-                return "digit"
-            elif re.match(r"[a-zA-Z]", c):
-                return "word"
-            elif re.match(r"[\u4e00-\u9fff]", c):
-                return "chinese"
-            elif c.isspace():
-                return "space"
-            else:
-                return "special"
-
-        while i < n:
-            c = pattern[i]
-            node_type = get_type(c)
-            content = c
-            quantifier = ""
-
-            # 检查是否有量词在字符后面
-            if i + 1 < n and pattern[i + 1] in "*+?":
-                quantifier = pattern[i + 1]
-                i += 1
-
-            # 合并连续相同类型字符
-            j = i + 1
-            while j < n:
-                c2 = pattern[j]
-                t2 = get_type(c2)
-                if t2 == node_type:
-                    # 检查是否有量词在后面
-                    if j + 1 < n and pattern[j + 1] in "*+?":
-                        content += c2
-                        quantifier += pattern[j + 1]
-                        j += 2
-                        continue
-                    content += c2
-                    j += 1
-                else:
-                    break
-
-            nodes.append({"type": node_type, "content": content, "quantifier": quantifier})
-            i = j
-
-        return nodes
-
     def run_button_function(self):
-        """执行正则匹配功能：Mode 0 和 Mode 1 统一使用 finditer 核心逻辑"""
+        """Execute regex matching: Mode 0 and Mode 1 use unified finditer logic"""
         input_text = self.left_text_widget.get("1.0", "end-1c")
-        # 获取高亮项中的正则字符串
-        regex_raw_list = [item.get("regex") for item in getattr(self, "highlight_items", []) if item.get("regex")]
+        
+        sorted_items = sorted(
+            [item for item in getattr(self, "highlight_items", []) if item.get("regex")],
+            key=lambda x: x.get("order", 0)
+        )
+        regex_raw_list = [item.get("regex") for item in sorted_items]
         
         if not regex_raw_list:
             messagebox.showerror("Error", "No valid regex rules found.")
@@ -1084,8 +954,7 @@ class MainGUI(tk.Tk):
             show_row = self.show_row_number_value.get()
             self.right_text_widget.delete("1.0", "end")
 
-            # --- 核心搜索阶段：所有模式都先执行全量匹配 ---
-            all_regex_matches = [] # 存储结构: [ [ (line_no, val, match_obj), ... ], [ ... ] ]
+            all_regex_matches = []
             
             for regex_str in regex_raw_list:
                 try:
@@ -1099,52 +968,42 @@ class MainGUI(tk.Tk):
                 last_line_check_ptr = 0
                 
                 for m in matches:
-                    # 1. 计算增量行号 (核心筛选依据)
                     abs_start = m.start()
                     new_newlines = input_text.count("\n", last_line_check_ptr, abs_start)
                     current_line_count += new_newlines
                     last_line_check_ptr = abs_start
                     
-                    # 2. 提取显示内容
                     if m.lastindex:
                         val = " | ".join(str(m.group(i)).replace("\r", "<CR>").replace("\n", "<LF>") for i in range(1, m.lastindex + 1))
                     else:
                         val = m.group(0).replace("\r", "<CR>").replace("\n", "<LF>")
                     
-                    # 存储元组：(行号整数, 显示字符串, match对象)
                     col_data.append((current_line_count, val, m))
                 
                 all_regex_matches.append(col_data)
 
-            # --- 逻辑处理阶段：根据模式筛选结果 ---
-            final_columns = [] # 最终显示的列数据
-            final_row_numbers = [] # 最终显示的行号数据
+            final_columns = []
+            final_row_numbers = []
 
             if mode == 0:
-                # 模式 0：直接转换
                 for col in all_regex_matches:
                     final_columns.append([item[1] for item in col])
                     final_row_numbers.append([str(item[0]) for item in col])
             
             elif mode == 1:
-                # 模式 1：瀑布式行号筛选 (Sequence)
-                # 筛选逻辑：每一行必须在上一行之后
-                filtered_rows = [] # [ [val1, val2...], [val1, val2...] ]
+                filtered_rows = []
                 filtered_rows_no = []
                 
-                # 以第一个 regex 的每个匹配作为起点
                 for i in range(len(all_regex_matches[0])):
                     temp_seq_vals = []
                     temp_seq_nos = []
                     
-                    # 第一个元素
                     curr_line_no, curr_val, _ = all_regex_matches[0][i]
                     temp_seq_vals.append(curr_val)
                     temp_seq_nos.append(str(curr_line_no))
                     last_line_no = curr_line_no
                     
                     possible_sequence = True
-                    # 从第二个 regex 开始找第一个行号更大的
                     for next_col in all_regex_matches[1:]:
                         found_next = False
                         for next_line_no, next_val, _ in next_col:
@@ -1163,28 +1022,29 @@ class MainGUI(tk.Tk):
                         filtered_rows.append(temp_seq_vals)
                         filtered_rows_no.append(temp_seq_nos)
 
-                # 将筛选后的行数据转回列结构以适配现有的 UI 组装逻辑
                 if filtered_rows:
                     num_regex = len(regex_raw_list)
                     for col_idx in range(num_regex):
                         final_columns.append([row[col_idx] for row in filtered_rows])
                         final_row_numbers.append([row[col_idx] for row in filtered_rows_no])
 
-            # --- UI 组装阶段 ---
             if final_columns:
-                # 清空位置映射
                 self.match_positions = {}
                 
-                # 1. 表头
                 header_parts = []
                 for col in final_columns:
                     if show_row == 1: header_parts.append("line")
                     header_parts.append(str(len(col)))
                 
                 header_line = "\t\t".join(header_parts)
-                divider = "-" * 100
                 
-                # 2. 数据行并记录位置
+                name_parts = []
+                for idx, item in enumerate(sorted_items):
+                    if show_row == 1: name_parts.append("")
+                    name_parts.append(item.get("name", "")[:50])
+                
+                name_line = "\t\t".join(name_parts)
+                
                 max_rows = max(len(col) for col in final_columns)
                 result_rows = []
                 for r in range(max_rows):
@@ -1193,24 +1053,17 @@ class MainGUI(tk.Tk):
                         if show_row == 1:
                             row_parts.append(final_row_numbers[col_idx][r] if r < len(final_row_numbers[col_idx]) else "")
                         
-                        # 记录位置映射（数据列）
                         if r < len(final_columns[col_idx]):
-                            # 计算在输入文本中的位置
                             if mode == 0:
-                                # Mode 0: 直接从 all_regex_matches 获取
                                 if col_idx < len(all_regex_matches) and r < len(all_regex_matches[col_idx]):
                                     line_no, _, m = all_regex_matches[col_idx][r]
                                     start_pos = f"1.0+{m.start()}c"
                                     end_pos = f"1.0+{m.end()}c"
-                                    # 行号从3开始（表头+分隔线+数据）
                                     output_row = r + 3
-                                    # 列索引考虑是否显示行号
                                     output_col = col_idx * 2 if show_row == 1 else col_idx
                                     self.match_positions[(output_row, output_col)] = (start_pos, end_pos)
                             elif mode == 1:
-                                # Mode 1: 从筛选后的结果获取
                                 if col_idx < len(all_regex_matches):
-                                    # 找到对应的匹配索引
                                     target_line = int(final_row_numbers[col_idx][r])
                                     for match_idx, (line_no, _, m) in enumerate(all_regex_matches[col_idx]):
                                         if line_no == target_line:
@@ -1224,7 +1077,7 @@ class MainGUI(tk.Tk):
                         row_parts.append(final_columns[col_idx][r] if r < len(final_columns[col_idx]) else "")
                     result_rows.append("\t\t".join(row_parts))
                 
-                final_output = header_line + "\n" + divider + "\n" + "\n".join(result_rows) + "\n"
+                final_output = header_line + "\n" + name_line + "\n" + "\n".join(result_rows) + "\n"
                 self.right_text_widget.insert(tk.END, final_output)
 
         except Exception as e:
@@ -1235,19 +1088,16 @@ class MainGUI(tk.Tk):
     def highlight_capture_groups(self):
         text = self.regex_text_input.get("1.0", "end-1c")
 
-        # 1. 清除旧的 tag
         self.regex_text_input.tag_remove("capture_group", "1.0", "end")
         self.regex_text_input.tag_remove("notcare", "1.0", "end")
         
-        # --- 2. 先计算捕获组括号的范围 (获取所有括号区间的索引) ---
         stack = []
-        groups = [] # 存储 (start_index, end_index) 数组
+        groups = []
         i = 0
         n = len(text)
 
         while i < n:
             ch = text[i]
-            # 计算反斜杠判定转义
             bs_count = 0
             j = i - 1
             while j >= 0 and text[j] == '\\':
@@ -1261,17 +1111,15 @@ class MainGUI(tk.Tk):
                 if stack:
                     start = stack.pop()
                     end = i + 1
-                    groups.append((start, end)) # 记录捕获组范围
+                    groups.append((start, end))
             i += 1
 
-        # --- 3. 高亮捕获组 (Capture Groups) ---
         for start, end in groups:
             start_index = f"1.0 + {start} chars"
             end_index = f"1.0 + {end} chars"
             self.regex_text_input.tag_add("capture_group", start_index, end_index)
 
-        # --- 4. 高亮 [\s\S]{0,10000}? (通配符)，增加逻辑判断：不能在捕获组内 ---
-        targets = [r"[\s\S]{0,10000}?", r".{0,10000}?"] # 建议顺便把刚才讨论的非跨行通配符也加上
+        targets = [r"[\s\S]{0,10000}?", r".{0,10000}?"]
         
         for target in targets:
             start_search = 0
@@ -1280,18 +1128,15 @@ class MainGUI(tk.Tk):
                 if idx == -1:
                     break
                 
-                # 检查转义
                 bs_count = 0
                 j = idx - 1
                 while j >= 0 and text[j] == '\\':
                     bs_count += 1
                     j -= 1
                 
-                if bs_count % 2 == 0:  # 未被转义
-                    # --- 修改逻辑核心：判断 idx 是否在任何一个 capture_group 范围内 ---
+                if bs_count % 2 == 0:
                     is_inside_capture = False
                     for g_start, g_end in groups:
-                        # 如果通配符的起始位置在括号区间内
                         if g_start <= idx < g_end:
                             is_inside_capture = True
                             break
@@ -1304,32 +1149,25 @@ class MainGUI(tk.Tk):
                 start_search = idx + len(target)
 
     def update_highlight_items(self, event=None):
-        """把 regex_text_input 当前行的文本，更新到对应的 highlight_item（基于 left_text_widget 的光标位置判定）"""
-
-        # 1. 获取输入框当前的正则内容
         text = self.regex_text_input.get("1.0", "end-1c").strip()
 
-        # 【新增】校验正则合法性，不合法时输入框变红，但不保存
         if text:
             try:
                 re.compile(text)
                 self.regex_text_input.config(foreground="black")
             except re.error:
                 self.regex_text_input.config(foreground="red")
-                self.highlight_capture_groups() # 即使语法错误，也更新capture和not care的高亮
-                return # 语法错误时不更新到内存，防止 Run 的时候报错
+                self.highlight_capture_groups()
+                return
 
-        # 3. 确定当前光标在左侧文本框的哪个 highlight_item 上
         try:
             cursor = self.left_text_widget.index("insert")
         except Exception:
             cursor = None
 
-        # 确保 highlight_items 存在
         if not hasattr(self, "highlight_items") or self.highlight_items is None:
             self.highlight_items = []
 
-        # 若有有效左侧光标，则找到包含该光标的 item 并更新其 regex
         target_item = None
         if cursor:
             for item in self.highlight_items:
@@ -1340,19 +1178,14 @@ class MainGUI(tk.Tk):
                 try:
                     if (self.left_text_widget.compare(cursor, ">=", s) and
                         self.left_text_widget.compare(cursor, "<=", e)):
-                        # 找到对应 item，更新其 regex 字段
                         target_item = item
-                        #item["regex"] = text
                         break
                 except Exception:
-                    # compare 可能因索引格式问题失败，跳过该 item
                     continue
 
-        # 4. 如果找到了对应的 Match 项，更新它的正则
         if target_item:
             target_item["regex"] = text
 
-        # 实时高亮捕获组的括号
         self.highlight_capture_groups()
 
     def generalize_regex_pattern(self, text):
@@ -1417,22 +1250,14 @@ class MainGUI(tk.Tk):
         return self.translate_to_regex(text)
 
     def split_segments(self, item, abs_sel_start, abs_sel_end):
-        """
-        将 highlight_item 的 segments 根据选中区间切分成更细的段。
-        abs_sel_start / abs_sel_end 是绝对文本坐标（Text widget index）
-        """
-
         hl_start = item["start"]
 
-        # 1. 获取 count 的结果
         res_start = self.left_text_widget.count(hl_start, abs_sel_start, "chars")
         res_end   = self.left_text_widget.count(hl_start, abs_sel_end, "chars")
 
-        # 2. 如果返回值为 None（即无法计算或索引冲突），直接停止运行
         if res_start is None or res_end is None:
             return None
 
-        # 3. 如果结果正常，解包获取相对偏移量
         rel_start = res_start[0]
         rel_end   = res_end[0]
 
@@ -1444,12 +1269,8 @@ class MainGUI(tk.Tk):
             seg_len = len(t)
 
             if pos + seg_len <= rel_start or pos >= rel_end:
-                # 与选区无交集 → 保持原样
                 new_segments.append(seg)
             else:
-                # 有交集 → 分三段
-
-                # 1) 左边残留
                 left_len = max(0, rel_start - pos)
                 if left_len > 0:
                     new_segments.append({
@@ -1457,16 +1278,14 @@ class MainGUI(tk.Tk):
                         "type": seg["type"]
                     })
 
-                # 2) 中间选中部分
                 mid_start = max(0, rel_start - pos)
                 mid_end   = min(seg_len, rel_end - pos)
                 if mid_start < mid_end:
                     new_segments.append({
                         "text": t[mid_start:mid_end],
-                        "type": None    # 稍后赋值（capture / notcare）
+                        "type": None
                     })
 
-                # 3) 右边残留
                 right_len = seg_len - mid_end
                 if right_len > 0:
                     new_segments.append({
@@ -1484,7 +1303,7 @@ class MainGUI(tk.Tk):
         # 1. 选择文件
         # -------------------------------------------------------------
         file_path = filedialog.askopenfilename(
-            title="选择 Regex TXT 文件",
+            title="Select Regex TXT File",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
         )
 
@@ -1498,20 +1317,32 @@ class MainGUI(tk.Tk):
             with open(file_path, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f.readlines()]
         except Exception as e:
-            messagebox.showerror("Error", f"Coulnd not read file：\n{e}")
+            messagebox.showerror("Error", f"Could not read file:\n{e}")
             return
 
         # 去掉空行
-        regex_list = [ln for ln in lines if ln]
+        regex_list = []
+        name_list = []
+        for ln in lines:
+            if not ln:
+                continue
+            if "|||" in ln:
+                parts = ln.split("|||", 1)
+                name_list.append(parts[0])
+                regex_list.append(parts[1])
+            else:
+                name_list.append(ln[:50])
+                regex_list.append(ln)
 
         if not regex_list:
-            messagebox.showwarning("Warning", "File empty, no regex found！")
+            messagebox.showwarning("Warning", "File empty, no regex found!")
             return
 
         # -------------------------------------------------------------
         # 3. 清除当前 highlight_items
         # -------------------------------------------------------------
         self.highlight_items.clear()
+        self.regex_counter = 0
 
         # 记录过程中所有的错误
         error_messages = []
@@ -1526,12 +1357,12 @@ class MainGUI(tk.Tk):
             try:
                 pattern = re.compile(regex)
             except Exception as e:
-                error_messages.append(f"Regex 编译失败: {regex}\n{e}")
+                error_messages.append(f"Regex compilation failed: {regex}\n{e}")
                 continue
 
             match = pattern.search(full_text)
             if not match:
-                error_messages.append(f"未匹配到内容: {regex}")
+                error_messages.append(f"No match found: {regex}")
                 continue
 
             # ---------------------------------------------------------
@@ -1545,7 +1376,7 @@ class MainGUI(tk.Tk):
                 self.left_text_widget.tag_add("sel", start_idx, end_idx)
                 self.mark_as_mark_button_function()
             except Exception as e:
-                error_messages.append(f"mark_as_mark_button_function 失败: {regex}\n{e}")
+                error_messages.append(f"mark_as_mark_button_function failed: {regex}\n{e}")
                 continue
 
             # ---------------------------------------------------------
@@ -1567,22 +1398,21 @@ class MainGUI(tk.Tk):
                         self.left_text_widget.tag_add("sel", g_start_idx, g_end_idx)
                         self.mark_as_target_button_function()
                     except Exception as e:
-                        error_messages.append(
-                            f"mark_as_target_button_function 失败: {regex}\n捕获组 {i}\n{e}"
-                        )
+                        error_messages.append(f"mark_as_target_button_function failed: {regex}\nCapture group {i}\n{e}")
                         continue
 
 
 
         # -------------------------------------------------------------
-        # 5. 更新 highlight_items 中所有 regex 为 TXT 文件中的内容（带异常处理）
+        # 5. 更新 highlight_items 中所有 regex 和 name 为 TXT 文件中的内容（带异常处理）
         # -------------------------------------------------------------
-        for idx, regex in enumerate(regex_list):
+        for idx in range(len(regex_list)):
             try:
                 if idx < len(self.highlight_items):
-                    self.highlight_items[idx]["regex"] = regex
+                    self.highlight_items[idx]["regex"] = regex_list[idx]
+                    self.highlight_items[idx]["name"] = name_list[idx]
             except Exception as e:
-                error_messages.append(f"更新 highlight_item regex 失败，索引 {idx}：{e}")
+                error_messages.append(f"Update highlight_item regex failed, index {idx}: {e}")
 
         # -------------------------------------------------------------
         # 6. 若有错误 → 展示所有错误
@@ -1591,92 +1421,75 @@ class MainGUI(tk.Tk):
             messagebox.showwarning("Regex Load Finished With Errors", "\n\n".join(error_messages))
         else:
             messagebox.showinfo("Success", "All Regex loaded and applied.")
+        
+        # 更新序号显示
+        if self.highlight_items:
+            first_item = self.highlight_items[0]
+            try:
+                self.left_text_widget.mark_set("insert", first_item["start"])
+                self.update_regex_order_display()
+                self.update_regex_name_display()
+            except Exception:
+                pass
 
     def save_regex_button_function(self):
-        # -------------------------
-        # 1. 检查是否有 regex 可保存
-        # -------------------------
         if not hasattr(self, "highlight_items") or len(self.highlight_items) == 0:
             messagebox.showwarning("Warning", "No Regex found！")
             return
 
-        # 收集 regex
-        regex_list = []
-        for item in self.highlight_items:
-            if "regex" in item and item["regex"]:
-                regex_list.append(item["regex"])
+        sorted_items = sorted(
+            [item for item in self.highlight_items if "regex" in item and item["regex"]],
+            key=lambda x: x.get("order", 0)
+        )
 
-        if len(regex_list) == 0:
+        if len(sorted_items) == 0:
             messagebox.showwarning("Warning", "No Regex found！")
             return
 
-        # -------------------------
-        # 2. 弹出保存文件窗口
-        # -------------------------
         file_path = filedialog.asksaveasfilename(
-            title="保存 Regex 文件",
+            title="Save Regex File",
             defaultextension=".txt",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
         )
 
-        if not file_path:  # 用户取消
+        if not file_path:
             return
 
-        # -------------------------
-        # 3. 保存到文件
-        # -------------------------
         try:
             with open(file_path, "w", encoding="utf-8") as f:
-                for regex in regex_list:
-                    f.write(regex + "\n")
+                for item in sorted_items:
+                    name = item.get("name", "")
+                    regex = item["regex"]
+                    f.write(f"{name}|||{regex}\n")
 
-            messagebox.showinfo("Success", f"Regex successfully save to：\n{file_path}")
+            messagebox.showinfo("Success", f"Regex successfully saved to:\n{file_path}")
 
         except Exception as e:
-            messagebox.showerror("Error", f"File save fail：\n{e}")
+            messagebox.showerror("Error", f"File save failed:\n{e}")
 
     def focus_to_last_regex_button_function(self):
-        """跳到上一个 highlight item 的行首（基于 highlight_items 的 start/end）"""
-        # 必要性检查
         if not hasattr(self, "highlight_items") or not self.highlight_items:
             messagebox.showinfo("Info", "No highlight items.")
             return
 
-        # 将 start 转为可排序的 tuple (line, col)
-        def index_to_tuple(index):
-            try:
-                s = str(index)
-                line, col = s.split(".")
-                return int(line), int(col)
-            except Exception:
-                return (10**9, 10**9)  # 放到最后
-
-        # 收集所有有效 item 的 start/end（跳过没有 start 的）
-        items = []
-        for it in self.highlight_items:
-            s = it.get("start")
-            e = it.get("end")
-            if not s or not e:
-                continue
-            items.append((s, e, it))
+        items = sorted(
+            [(it.get("order", 0), it.get("start"), it.get("end"), it) 
+             for it in self.highlight_items if it.get("start") and it.get("end")],
+            key=lambda x: x[0]
+        )
 
         if not items:
-            messagebox.showinfo("Info", "No valid highlight items with start/end.")
+            messagebox.showinfo("Info", "No valid highlight items.")
             return
 
-        # 按 start 排序
-        items.sort(key=lambda x: index_to_tuple(x[0]))
-
-        # 当前光标位置
         try:
             cur = self.left_text_widget.index("insert")
         except Exception:
             cur = None
 
-        # 如果光标在某个 item 内，则找到该 item 的索引
         cur_idx = None
         if cur:
-            for i, (s, e, it) in enumerate(items):
+            for i, (order, s, e, it) in enumerate(items):
                 try:
                     if (self.left_text_widget.compare(cur, ">=", s) and
                         self.left_text_widget.compare(cur, "<=", e)):
@@ -1685,41 +1498,20 @@ class MainGUI(tk.Tk):
                 except Exception:
                     continue
 
-        # 如果没有在任一 item 内，用 start 与 cur 比较找到前一个 item（start < cur）
-        if cur_idx is None and cur:
-            prev_i = None
-            for i, (s, e, it) in enumerate(items):
-                try:
-                    if self.left_text_widget.compare(s, "<", cur):
-                        prev_i = i
-                    else:
-                        break
-                except Exception:
-                    continue
-            if prev_i is None:
-                messagebox.showinfo("Info", "Already before the first match (no previous match).")
-                return
-            target_item = items[prev_i]
+        if cur_idx is None:
+            target_item = items[-1]
         else:
-            # cur_idx is index of current item; we want previous item
-            if cur_idx is None:
-                # 没有光标信息，直接取最后一个可用项作为目标
-                target_item = items[-1]
-            else:
-                prev_index = cur_idx - 1
-                if prev_index < 0:
-                    messagebox.showinfo("Info", "Already at the first match.")
-                    return
-                target_item = items[prev_index]
+            prev_index = cur_idx - 1
+            if prev_index < 0:
+                messagebox.showinfo("Info", "Already at the first match.")
+                return
+            target_item = items[prev_index]
 
-        # target_item 是 (start, end, it)
-        tgt_start = target_item[0]
+        tgt_start = target_item[1]
 
-        # 移动光标并滚动视图
         try:
             self.left_text_widget.mark_set("insert", tgt_start)
             self.left_text_widget.see(tgt_start)
-            # 取消选区，确保视觉正常
             try:
                 self.left_text_widget.tag_remove("sel", "1.0", "end")
             except Exception:
@@ -1727,37 +1519,25 @@ class MainGUI(tk.Tk):
         except Exception:
             messagebox.showerror("Error", "Failed to move cursor to previous match.")
 
-        self.on_cursor_move_highlight()     # 让regex同步显示
-        self.left_text_widget.focus_set()   # 关键步骤，光标恢复闪烁
+        self.on_cursor_move_highlight()
+        self.update_regex_name_display()
+        self.left_text_widget.focus_set()
 
 
     def focus_to_next_regex_button_function(self):
-        """跳到下一个 highlight item 的行首（基于 highlight_items 的 start/end）"""
         if not hasattr(self, "highlight_items") or not self.highlight_items:
             messagebox.showinfo("Info", "No highlight items.")
             return
 
-        def index_to_tuple(index):
-            try:
-                s = str(index)
-                line, col = s.split(".")
-                return int(line), int(col)
-            except Exception:
-                return (10**9, 10**9)
-
-        items = []
-        for it in self.highlight_items:
-            s = it.get("start")
-            e = it.get("end")
-            if not s or not e:
-                continue
-            items.append((s, e, it))
+        items = sorted(
+            [(it.get("order", 0), it.get("start"), it.get("end"), it) 
+             for it in self.highlight_items if it.get("start") and it.get("end")],
+            key=lambda x: x[0]
+        )
 
         if not items:
-            messagebox.showinfo("Info", "No valid highlight items with start/end.")
+            messagebox.showinfo("Info", "No valid highlight items.")
             return
-
-        items.sort(key=lambda x: index_to_tuple(x[0]))
 
         try:
             cur = self.left_text_widget.index("insert")
@@ -1766,7 +1546,7 @@ class MainGUI(tk.Tk):
 
         cur_idx = None
         if cur:
-            for i, (s, e, it) in enumerate(items):
+            for i, (order, s, e, it) in enumerate(items):
                 try:
                     if (self.left_text_widget.compare(cur, ">=", s) and
                         self.left_text_widget.compare(cur, "<=", e)):
@@ -1775,33 +1555,16 @@ class MainGUI(tk.Tk):
                 except Exception:
                     continue
 
-        # 如果不在任何 item 内，则找到第一个 start > cur 的 item
-        if cur_idx is None and cur:
-            next_i = None
-            for i, (s, e, it) in enumerate(items):
-                try:
-                    if self.left_text_widget.compare(s, ">", cur):
-                        next_i = i
-                        break
-                except Exception:
-                    continue
-            if next_i is None:
-                messagebox.showinfo("Info", "Already after the last match (no next match).")
-                return
-            target_item = items[next_i]
+        if cur_idx is None:
+            target_item = items[0]
         else:
-            # 在某个 item 内，跳到下一个
-            if cur_idx is None:
-                # 没有光标信息，取第一个
-                target_item = items[0]
-            else:
-                next_index = cur_idx + 1
-                if next_index >= len(items):
-                    messagebox.showinfo("Info", "Already at the last match.")
-                    return
-                target_item = items[next_index]
+            next_index = cur_idx + 1
+            if next_index >= len(items):
+                messagebox.showinfo("Info", "Already at the last match.")
+                return
+            target_item = items[next_index]
 
-        tgt_start = target_item[0]
+        tgt_start = target_item[1]
 
         try:
             self.left_text_widget.mark_set("insert", tgt_start)
@@ -1813,14 +1576,169 @@ class MainGUI(tk.Tk):
         except Exception:
             messagebox.showerror("Error", "Failed to move cursor to next match.")
 
-        self.on_cursor_move_highlight()     # 让regex同步显示
-        self.left_text_widget.focus_set()   # 关键步骤，光标恢复闪烁
+        self.on_cursor_move_highlight()
+        self.update_regex_name_display()
+        self.left_text_widget.focus_set()
+
+    def update_regex_order_display(self):
+        try:
+            cursor = self.left_text_widget.index("insert")
+        except Exception:
+            self.regex_order_entry.config(state="normal")
+            self.regex_order_entry.delete(0, tk.END)
+            self.regex_order_entry.config(state="readonly")
+            return
+
+        for item in getattr(self, "highlight_items", []):
+            start = item.get("start")
+            end = item.get("end")
+            if not start or not end:
+                continue
+            try:
+                if (self.left_text_widget.compare(cursor, ">=", start) and
+                    self.left_text_widget.compare(cursor, "<=", end)):
+                    order = item.get("order", "")
+                    self.regex_order_entry.config(state="normal")
+                    self.regex_order_entry.delete(0, tk.END)
+                    self.regex_order_entry.insert(0, str(order))
+                    self.regex_order_entry.config(state="readonly")
+                    return
+            except Exception:
+                continue
+
+        self.regex_order_entry.config(state="normal")
+        self.regex_order_entry.delete(0, tk.END)
+        self.regex_order_entry.config(state="readonly")
+
+    def move_front_button_function(self):
+        try:
+            cursor = self.left_text_widget.index("insert")
+        except Exception:
+            messagebox.showinfo("Info", "No cursor position.")
+            return
+
+        current_item = None
+        for item in getattr(self, "highlight_items", []):
+            start = item.get("start")
+            end = item.get("end")
+            if not start or not end:
+                continue
+            try:
+                if (self.left_text_widget.compare(cursor, ">=", start) and
+                    self.left_text_widget.compare(cursor, "<=", end)):
+                    current_item = item
+                    break
+            except Exception:
+                continue
+
+        if not current_item:
+            messagebox.showinfo("Info", "Cursor is not in any regex match.")
+            return
+
+        sorted_items = sorted(
+            [it for it in self.highlight_items if it.get("order")],
+            key=lambda x: x.get("order", 0)
+        )
+
+        current_idx = sorted_items.index(current_item)
+        if current_idx == 0:
+            messagebox.showinfo("Info", "Already at the first position.")
+            return
+
+        prev_item = sorted_items[current_idx - 1]
+        current_item["order"], prev_item["order"] = prev_item["order"], current_item["order"]
+        self.update_regex_order_display()
+        self.update_regex_name_display()
+
+    def move_behind_button_function(self):
+        try:
+            cursor = self.left_text_widget.index("insert")
+        except Exception:
+            messagebox.showinfo("Info", "No cursor position.")
+            return
+
+        current_item = None
+        for item in getattr(self, "highlight_items", []):
+            start = item.get("start")
+            end = item.get("end")
+            if not start or not end:
+                continue
+            try:
+                if (self.left_text_widget.compare(cursor, ">=", start) and
+                    self.left_text_widget.compare(cursor, "<=", end)):
+                    current_item = item
+                    break
+            except Exception:
+                continue
+
+        if not current_item:
+            messagebox.showinfo("Info", "Cursor is not in any regex match.")
+            return
+
+        sorted_items = sorted(
+            [it for it in self.highlight_items if it.get("order")],
+            key=lambda x: x.get("order", 0)
+        )
+
+        current_idx = sorted_items.index(current_item)
+        if current_idx == len(sorted_items) - 1:
+            messagebox.showinfo("Info", "Already at the last position.")
+            return
+
+        next_item = sorted_items[current_idx + 1]
+        current_item["order"], next_item["order"] = next_item["order"], current_item["order"]
+        self.update_regex_order_display()
+        self.update_regex_name_display()
+
+    def update_regex_name_display(self):
+        try:
+            cursor = self.left_text_widget.index("insert")
+        except Exception:
+            self.regex_name_entry.delete(0, tk.END)
+            return
+
+        for item in getattr(self, "highlight_items", []):
+            start = item.get("start")
+            end = item.get("end")
+            if not start or not end:
+                continue
+            try:
+                if (self.left_text_widget.compare(cursor, ">=", start) and
+                    self.left_text_widget.compare(cursor, "<=", end)):
+                    name = item.get("name", "")
+                    self.regex_name_entry.delete(0, tk.END)
+                    self.regex_name_entry.insert(0, name)
+                    return
+            except Exception:
+                continue
+
+        self.regex_name_entry.delete(0, tk.END)
+
+    def on_regex_name_changed(self, event=None):
+        try:
+            cursor = self.left_text_widget.index("insert")
+        except Exception:
+            return
+
+        new_name = self.regex_name_entry.get()
+
+        for item in getattr(self, "highlight_items", []):
+            start = item.get("start")
+            end = item.get("end")
+            if not start or not end:
+                continue
+            try:
+                if (self.left_text_widget.compare(cursor, ">=", start) and
+                    self.left_text_widget.compare(cursor, "<=", end)):
+                    item["name"] = new_name
+                    return
+            except Exception:
+                continue
 
     def show_regex_table_function(self):
-        """弹出一个窗口，展示常用泛化正则表达式表"""
-        # 新建窗口
+        """Show a window displaying common regex patterns"""
         win = tk.Toplevel(self)
-        win.title("常用泛化正则表达式表")
+        win.title("Common Regex Patterns Table")
         win.geometry("1200x420")
 
         # 文本区域
@@ -1858,7 +1776,7 @@ class MainGUI(tk.Tk):
         #text_area.config(state="disabled")  # 设置只读
 
     def open_regex_tutorial_function(self):
-        """直接打开默认浏览器，跳转到 Python 正则表达式教程"""
+        """Open default browser to Python regex tutorial"""
         try:
             webbrowser.open("https://deerchao.cn/tutorials/regex/regex.htm?utm_source=chatgpt.com")
         except Exception as e:

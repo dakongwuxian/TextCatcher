@@ -1,3 +1,9 @@
+2026.2.9
+1、增加了Regex Order、Regex Name文本框，增加了Change Order的-1和+1按键，调整了控件的布局，调整了控件的名称和提示名。
+2、增加了高亮item的属性，现在包含order和name，跟每个match item绑定在一起，方便调整和修改。
+3、现在run之后的结果，第二行是所有regex的name。
+4、其他一些代码的优化。
+
 2026.1.26
 1、增加了save as的可选文件格式，增加了excel的xlxs格式。
 2、增加了open in excel按钮，可以直接在excel中浏览当前结果的内容。
