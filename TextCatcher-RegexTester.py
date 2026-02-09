@@ -13,6 +13,7 @@
 import base64
 import os
 import re
+import sys
 import tempfile
 import webbrowser
 from io import BytesIO
@@ -137,13 +138,13 @@ class MainGUI(tk.Tk):
         self.regular_expression_area_label.grid(row=0,column=0,sticky="w", pady=5)
 
         self.up_button_frame = ttk.Frame(self.up_frame)
-        self.up_button_frame.grid(row=1, column=0,sticky="ew", padx=5)
+        self.up_button_frame.grid(row=1, column=0,sticky="ew", padx=0)
         self.up_button_frame.columnconfigure(2, weight=1)
 
 
-        self.load_regex_button = ttk.Button(self.up_button_frame,text="Load Regex from File",command=self.load_regex_button_function)
-        self.load_regex_button.grid(row=0,column=0,sticky="w",padx=5)
-        self.save_regex_button = ttk.Button(self.up_button_frame,text="Save Regex as File",command=self.save_regex_button_function)
+        self.load_regex_button = ttk.Button(self.up_button_frame,text="Load Regex",command=self.load_regex_button_function)
+        self.load_regex_button.grid(row=0,column=0,sticky="w",padx=0)
+        self.save_regex_button = ttk.Button(self.up_button_frame,text="Save Regex",command=self.save_regex_button_function)
         self.save_regex_button.grid(row=0,column=1,sticky="w",padx=5)
 
         self.show_regex_table_button = ttk.Button(self.up_button_frame,text="Common Regex",command=self.show_regex_table_function)
@@ -155,25 +156,25 @@ class MainGUI(tk.Tk):
         self.up_button_frame2.grid(row=2, column=0,sticky="w", padx=5, pady=(5,0))
         
         self.navigate_to_label = ttk.Label(self.up_button_frame2, text="Navigate to")
-        self.navigate_to_label.grid(row=0,column=0,sticky="w",padx=(5,0))
+        self.navigate_to_label.grid(row=0,column=0,sticky="w",padx=(0,5))
         self.focus_to_last_regex_button = ttk.Button(self.up_button_frame2,text="◀ Prev",command=self.focus_to_last_regex_button_function)
-        self.focus_to_last_regex_button.grid(row=0,column=1,sticky="w",padx=5)
+        self.focus_to_last_regex_button.grid(row=0,column=1,sticky="w",padx=0)
         self.focus_to_next_regex_button = ttk.Button(self.up_button_frame2,text="Next ▶",command=self.focus_to_next_regex_button_function)
         self.focus_to_next_regex_button.grid(row=0,column=2,sticky="w",padx=5)
         
         self.regex_order_label = ttk.Label(self.up_button_frame2, text="Regex Order:")
-        self.regex_order_label.grid(row=0,column=3,sticky="w",padx=(5,0))
+        self.regex_order_label.grid(row=0,column=3,sticky="w",padx=(20,5))
         self.regex_order_entry = ttk.Entry(self.up_button_frame2, width=8, state="readonly", justify="center")
         self.regex_order_entry.grid(row=0,column=4,sticky="w",padx=(0,5))
         
         self.regex_name_label = ttk.Label(self.up_button_frame2, text="Regex Name:")
-        self.regex_name_label.grid(row=0,column=5,sticky="w",padx=(5,0))
+        self.regex_name_label.grid(row=0,column=5,sticky="w",padx=(20,5))
         self.regex_name_entry = ttk.Entry(self.up_button_frame2, width=20)
         self.regex_name_entry.grid(row=0,column=6,sticky="w",padx=(0,5))
         self.regex_name_entry.bind("<KeyRelease>", self.on_regex_name_changed)
         
         self.change_order_label = ttk.Label(self.up_button_frame2, text="Change Order")
-        self.change_order_label.grid(row=0,column=7,sticky="w",padx=(5,0))
+        self.change_order_label.grid(row=0,column=7,sticky="w",padx=(20,0))
         self.move_front_button = ttk.Button(self.up_button_frame2,text="-1",command=self.move_front_button_function)
         self.move_front_button.grid(row=0,column=8,sticky="w",padx=5)
         self.move_behind_button = ttk.Button(self.up_button_frame2,text="+1",command=self.move_behind_button_function)
@@ -213,7 +214,7 @@ class MainGUI(tk.Tk):
         self.left_btn_frame = ttk.Frame(self.left_frame)
         self.left_btn_frame.pack(fill="x", pady=5)
         self.open_file_button = ttk.Button(self.left_btn_frame,text="Open File",command=self.open_file_button_function)
-        self.open_file_button.grid(row=0,column=0,sticky="w",padx=5)
+        self.open_file_button.grid(row=0,column=0,sticky="w",padx=(0,3))
 
         style = ttk.Style()
         style.configure("Match.TButton",
@@ -221,8 +222,8 @@ class MainGUI(tk.Tk):
         style.map("Match.TButton",
                   foreground=[("active", "#1a5f99")])# 鼠标悬停颜色
 
-        self.mark_as_mark_button = ttk.Button(self.left_btn_frame,style="Match.TButton",text="Set as Match",command=self.mark_as_mark_button_function)
-        self.mark_as_mark_button.grid(row=0,column=1,sticky="w",padx=5)
+        self.mark_as_mark_button = ttk.Button(self.left_btn_frame,style="Match.TButton",text="Set Match",command=self.mark_as_mark_button_function)
+        self.mark_as_mark_button.grid(row=0,column=1,sticky="w",padx=3)
 
         style = ttk.Style()
         style.configure("Target.TButton",
@@ -230,8 +231,8 @@ class MainGUI(tk.Tk):
         style.map("Target.TButton",
                   foreground=[("active", "#cc6600")])# 鼠标悬停颜色
 
-        self.mark_as_target_button = ttk.Button(self.left_btn_frame,style="Target.TButton",text="Set as Capture",command=self.mark_as_target_button_function)
-        self.mark_as_target_button.grid(row=0,column=2,sticky="w",padx=5)
+        self.mark_as_target_button = ttk.Button(self.left_btn_frame,style="Target.TButton",text="Set Capture",command=self.mark_as_target_button_function)
+        self.mark_as_target_button.grid(row=0,column=2,sticky="w",padx=3)
 
         style = ttk.Style()
         style.configure("NotCare.TButton",
@@ -239,10 +240,12 @@ class MainGUI(tk.Tk):
         style.map("Target.TButton",
                   foreground=[("active", "#666666")])# 鼠标悬停颜色
 
-        self.mark_as_not_care_button = ttk.Button(self.left_btn_frame,style="NotCare.TButton",text="Set as Not Care",command=self.mark_as_not_care_button_function)
-        self.mark_as_not_care_button.grid(row=0,column=3,sticky="w",padx=5)
+        self.mark_as_not_care_button = ttk.Button(self.left_btn_frame,style="NotCare.TButton",text="Set Not Care",command=self.mark_as_not_care_button_function)
+        self.mark_as_not_care_button.grid(row=0,column=3,sticky="w",padx=3)
         self.unmark_button = ttk.Button(self.left_btn_frame,text="Unmark",command=self.unmark_button_function)
-        self.unmark_button.grid(row=0,column=4,sticky="w",padx=5)
+        self.unmark_button.grid(row=0,column=4,sticky="w",padx=3)
+        self.clear_all_button = ttk.Button(self.left_btn_frame,text="Clear All",command=self.clear_all_button_function)
+        self.clear_all_button.grid(row=0,column=5,sticky="w",padx=3)
 
         # ====== 多行文本框区域 ======
         self.left_text_frame = ttk.Frame(self.left_frame)
@@ -282,7 +285,7 @@ class MainGUI(tk.Tk):
         self.right_btn_frame.pack(fill="x", pady=5)
 
         self.run_button = ttk.Button(self.right_btn_frame,text="Run",command=self.run_button_function)
-        self.run_button.grid(row=0,column=0,sticky="w",padx=5)
+        self.run_button.grid(row=0,column=0,sticky="w",padx=(0,5))
         self.save_as_button = ttk.Button(self.right_btn_frame,text="Save as..",command=self.save_as_button_function)
         self.save_as_button.grid(row=0,column=3,sticky="w",padx=5)
         self.open_in_excel_button = ttk.Button(self.right_btn_frame,text="Open in Excel",command=self.open_in_excel_button_function)
@@ -316,22 +319,21 @@ class MainGUI(tk.Tk):
 
 
     def open_file_button_function(self):
-        # 打开文件浏览器，选择txt文件
         file_path = filedialog.askopenfilename(
             title="Open TXT File",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
         )
 
-        # 如果用户取消选择，直接返回
         if not file_path:
             return
 
         try:
-            # 读取文件内容
+            if hasattr(self, "highlight_items") and self.highlight_items:
+                self._save_temp_regex()
+
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # --- 清空已有内容和高亮 ---
             self.left_text_widget.delete("1.0", tk.END)
         
             if hasattr(self, "highlight_items"):
@@ -344,14 +346,135 @@ class MainGUI(tk.Tk):
                         except Exception:
                             pass
                 self.highlight_items.clear()
-            # --- 清空完成 ---
-            # 插入新内容
+            
             self.left_text_widget.insert(tk.END, content)
-
             self.input_string_content = content
+
+            temp_file = self._get_temp_regex_path()
+            if os.path.exists(temp_file):
+                self._load_temp_regex()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open file:\n{e}")
+
+    def _get_temp_regex_path(self):
+        """Get temporary regex file path"""
+        if getattr(sys, 'frozen', False):
+            base_path = os.path.dirname(sys.executable)
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_path, "temp_regex_file.txt")
+
+    def _save_temp_regex(self):
+        """Silently save regex to temporary file"""
+        if not hasattr(self, "highlight_items") or len(self.highlight_items) == 0:
+            return
+
+        sorted_items = sorted(
+            [item for item in self.highlight_items if "regex" in item and item["regex"]],
+            key=lambda x: x.get("order", 0)
+        )
+
+        if len(sorted_items) == 0:
+            return
+
+        try:
+            temp_file = self._get_temp_regex_path()
+            with open(temp_file, "w", encoding="utf-8") as f:
+                for item in sorted_items:
+                    name = item.get("name", "")
+                    regex = item["regex"]
+                    f.write(f"{name}|||{regex}\n")
+        except Exception:
+            pass
+
+    def _load_temp_regex(self):
+        """Silently load temporary regex file"""
+        temp_file = self._get_temp_regex_path()
+        if not os.path.exists(temp_file):
+            return
+
+        try:
+            with open(temp_file, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f.readlines()]
+        except Exception:
+            return
+
+        regex_list = []
+        name_list = []
+        for ln in lines:
+            if not ln:
+                continue
+            if "|||" in ln:
+                parts = ln.split("|||", 1)
+                name_list.append(parts[0])
+                regex_list.append(parts[1])
+            else:
+                name_list.append(ln[:50])
+                regex_list.append(ln)
+
+        if not regex_list:
+            return
+
+        self.highlight_items.clear()
+        self.regex_counter = 0
+
+        full_text = self.left_text_widget.get("1.0", "end")
+
+        for regex in regex_list:
+            try:
+                pattern = re.compile(regex)
+            except Exception:
+                continue
+
+            match = pattern.search(full_text)
+            if not match:
+                continue
+
+            start_idx = f"1.0+{match.start()}c"
+            end_idx = f"1.0+{match.end()}c"
+
+            try:
+                self.left_text_widget.tag_remove("sel", "1.0", "end")
+                self.left_text_widget.tag_add("sel", start_idx, end_idx)
+                self.mark_as_mark_button_function()
+            except Exception:
+                continue
+
+            if match.lastindex:
+                for i in range(1, match.lastindex + 1):
+                    try:
+                        g_start = match.start(i)
+                        g_end = match.end(i)
+
+                        if g_start == -1 or g_end == -1:
+                            continue
+
+                        g_start_idx = f"1.0+{g_start}c"
+                        g_end_idx = f"1.0+{g_end}c"
+
+                        self.left_text_widget.tag_remove("sel", "1.0", "end")
+                        self.left_text_widget.tag_add("sel", g_start_idx, g_end_idx)
+                        self.mark_as_target_button_function()
+                    except Exception:
+                        continue
+
+        for idx in range(len(regex_list)):
+            try:
+                if idx < len(self.highlight_items):
+                    self.highlight_items[idx]["regex"] = regex_list[idx]
+                    self.highlight_items[idx]["name"] = name_list[idx]
+            except Exception:
+                pass
+
+        if self.highlight_items:
+            first_item = self.highlight_items[0]
+            try:
+                self.left_text_widget.mark_set("insert", first_item["start"])
+                self.update_regex_order_display()
+                self.update_regex_name_display()
+            except Exception:
+                pass
 
     def mark_as_mark_button_function(self):
         # 确保 highlight_items 存在
@@ -701,6 +824,28 @@ class MainGUI(tk.Tk):
         
         # 高亮 regex 的括号内的 capture group
         self.highlight_capture_groups()
+
+    def clear_all_button_function(self):
+        """Clear all highlight items and regex expression"""
+        if not hasattr(self, "highlight_items") or not self.highlight_items:
+            return
+
+        for item in self.highlight_items:
+            tag = item.get("tag")
+            if tag:
+                for t in list(self.left_text_widget.tag_names()):
+                    if str(t).startswith(str(tag)):
+                        try:
+                            self.left_text_widget.tag_remove(t, "1.0", "end")
+                        except Exception:
+                            pass
+
+        self.highlight_items.clear()
+        self.regex_text_input.delete("1.0", tk.END)
+        self.regex_order_entry.config(state="normal")
+        self.regex_order_entry.delete(0, tk.END)
+        self.regex_order_entry.config(state="readonly")
+        self.regex_name_entry.delete(0, tk.END)
 
     def unmark_button_function(self):
         cursor = self.left_text_widget.index("insert")
