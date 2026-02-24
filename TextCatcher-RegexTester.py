@@ -96,7 +96,7 @@ class MainGUI(tk.Tk):
         self.about_menu.add_command(label="Developed by Xian.Wu", state="disabled")
         self.about_menu.add_command(label="dakongwuxian@gmail.com", state="disabled")
 
-        self.about_menu.add_command(label="Ver. 20260209", state="disabled")
+        self.about_menu.add_command(label="Ver. 20260224", state="disabled")
 
         self.about_menu.add_command(label="Buy me a coffee ☕",command=self.show_about_window,state="normal")
 
@@ -319,20 +319,31 @@ class MainGUI(tk.Tk):
 
 
     def open_file_button_function(self):
-        file_path = filedialog.askopenfilename(
-            title="Open TXT File",
+        file_paths = filedialog.askopenfilenames(
+            title="Open TXT File(s)",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
         )
 
-        if not file_path:
+        if not file_paths:
             return
 
         try:
-            if hasattr(self, "highlight_items") and self.highlight_items:
+            has_highlights = (hasattr(self, "highlight_items") and 
+                            self.highlight_items and 
+                            len(self.highlight_items) > 0)
+            if has_highlights:
                 self._save_temp_regex()
 
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            # 按文件名排序
+            sorted_files = sorted(file_paths)
+            
+            # 读取所有文件内容
+            all_content = []
+            for file_path in sorted_files:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    all_content.append(f.read())
+            
+            content = "".join(all_content)
 
             self.left_text_widget.delete("1.0", tk.END)
         
@@ -350,9 +361,10 @@ class MainGUI(tk.Tk):
             self.left_text_widget.insert(tk.END, content)
             self.input_string_content = content
 
-            temp_file = self._get_temp_regex_path()
-            if os.path.exists(temp_file):
-                self._load_temp_regex()
+            if has_highlights:
+                temp_file = self._get_temp_regex_path()
+                if os.path.exists(temp_file):
+                    self._load_temp_regex()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open file:\n{e}")
@@ -2079,18 +2091,30 @@ class MainGUI(tk.Tk):
             files = event.data
             
             # 处理文件路径（可能包含花括号或多个文件）
+            file_list = []
             if isinstance(files, str):
-                # 移除花括号
                 files = files.strip('{}').strip()
-                # 分割多个文件（如果有）
-                file_list = files.split('} {')
-                file_path = file_list[0].strip()
+                file_list = [f.strip() for f in files.split('} {')]
             else:
-                file_path = str(files)
+                file_list = [str(files)]
             
-            # 读取文件内容
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            # 按文件名排序
+            file_list.sort()
+            
+            # 如果已有高亮内容，保存临时regex
+            has_highlights = (hasattr(self, "highlight_items") and 
+                            self.highlight_items and 
+                            len(self.highlight_items) > 0)
+            if has_highlights:
+                self._save_temp_regex()
+            
+            # 读取所有文件内容
+            all_content = []
+            for file_path in file_list:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    all_content.append(f.read())
+            
+            content = "".join(all_content)
             
             # 清空已有内容和高亮
             self.left_text_widget.delete("1.0", tk.END)
@@ -2109,6 +2133,12 @@ class MainGUI(tk.Tk):
             # 插入新内容
             self.left_text_widget.insert(tk.END, content)
             self.input_string_content = content
+            
+            # 只有之前有高亮内容时才尝试重新应用regex
+            if has_highlights:
+                temp_file = self._get_temp_regex_path()
+                if os.path.exists(temp_file):
+                    self._load_temp_regex()
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load file:\n{e}")
