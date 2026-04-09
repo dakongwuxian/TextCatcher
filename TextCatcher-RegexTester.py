@@ -96,7 +96,7 @@ class MainGUI(tk.Tk):
         self.about_menu.add_command(label="Developed by Xian.Wu", state="disabled")
         self.about_menu.add_command(label="dakongwuxian@gmail.com", state="disabled")
 
-        self.about_menu.add_command(label="Ver. 20260224", state="disabled")
+        self.about_menu.add_command(label="Ver. 20260409", state="disabled")
 
         self.about_menu.add_command(label="Buy me a coffee ☕",command=self.show_about_window,state="normal")
 
@@ -439,7 +439,7 @@ class MainGUI(tk.Tk):
             except Exception:
                 continue
 
-            match = pattern.search(full_text)
+            match = self._find_non_overlapping_match(pattern, full_text)
             if not match:
                 continue
 
@@ -453,23 +453,25 @@ class MainGUI(tk.Tk):
             except Exception:
                 continue
 
-            if match.lastindex:
-                for i in range(1, match.lastindex + 1):
-                    try:
-                        g_start = match.start(i)
-                        g_end = match.end(i)
+            # 分析正则表达式中的捕获组和 not care 段
+            segments_info = self._parse_regex_segments(regex, match)
+            
+            # 按顺序处理每个 segment
+            for seg_type, seg_start, seg_end in segments_info:
+                try:
+                    g_start_idx = f"1.0+{seg_start}c"
+                    g_end_idx = f"1.0+{seg_end}c"
 
-                        if g_start == -1 or g_end == -1:
-                            continue
-
-                        g_start_idx = f"1.0+{g_start}c"
-                        g_end_idx = f"1.0+{g_end}c"
-
-                        self.left_text_widget.tag_remove("sel", "1.0", "end")
-                        self.left_text_widget.tag_add("sel", g_start_idx, g_end_idx)
+                    self.left_text_widget.tag_remove("sel", "1.0", "end")
+                    self.left_text_widget.tag_add("sel", g_start_idx, g_end_idx)
+                    
+                    if seg_type == "notcare":
+                        self.mark_as_not_care_button_function()
+                    elif seg_type == "capture":
                         self.mark_as_target_button_function()
-                    except Exception:
-                        continue
+                except Exception:
+                    # 静默处理，某些 not care 段可能匹配 0 个字符
+                    continue
 
         for idx in range(len(regex_list)):
             try:
@@ -487,6 +489,117 @@ class MainGUI(tk.Tk):
                 self.update_regex_name_display()
             except Exception:
                 pass
+
+    def _find_non_overlapping_match(self, pattern, text):
+        """查找不与已有highlight重合的匹配位置"""
+        first_match = None
+        start_pos = 0
+        
+        while start_pos < len(text):
+            match = pattern.search(text, start_pos)
+            if not match:
+                break
+            
+            if first_match is None:
+                first_match = match
+            
+            # 检查是否与已有highlight重合
+            is_overlapping = False
+            match_start = match.start()
+            match_end = match.end()
+            
+            for item in self.highlight_items:
+                try:
+                    # 使用count方法将Tkinter索引转换为字符位置
+                    item_start = self.left_text_widget.count("1.0", item["start"], "chars")[0]
+                    item_end = self.left_text_widget.count("1.0", item["end"], "chars")[0]
+                    
+                    # 检查重合：[match_start, match_end) 与 [item_start, item_end) 是否有交集
+                    if not (match_end <= item_start or match_start >= item_end):
+                        is_overlapping = True
+                        break
+                except Exception:
+                    continue
+            
+            if not is_overlapping:
+                return match
+            
+            start_pos = match.end()
+        
+        return first_match
+
+    def _parse_regex_segments(self, regex, match):
+        """
+        解析正则表达式中的所有段（捕获组和 not care 段）
+        返回: [(seg_type, abs_start, abs_end), ...]
+        seg_type: "capture" 或 "notcare"
+        abs_start, abs_end: 在匹配文本中的绝对位置
+        """
+        segments = []
+        # 匹配所有 not care 模式: [\s\S]{0,N}? 其中 N 可以是任意数字
+        notcare_pattern = r"\[\\s\\S\]\{0,\d+\}\?"
+        
+        # 首先找到所有的 not care 模式在 regex 中的位置
+        notcare_positions = []
+        for m in re.finditer(notcare_pattern, regex):
+            notcare_positions.append((m.start(), m.end()))
+        
+        # 将 regex 中的 [\s\S]{0,N}? 替换为 ([\s\S]{0,N}?)
+        modified_regex = regex
+        offset = 0  # 跟踪字符串长度的变化
+        notcare_group_indices = []  # 记录 not care 对应的捕获组编号
+        
+        # 计算原始 regex 中有多少个捕获组
+        original_groups = match.lastindex if match.lastindex else 0
+        
+        for idx, (nc_start, nc_end) in enumerate(notcare_positions):
+            nc_pattern = regex[nc_start:nc_end]
+            # 计算在 modified_regex 中的位置
+            insert_pos = nc_start + offset
+            modified_regex = modified_regex[:insert_pos] + f"({nc_pattern})" + modified_regex[insert_pos + len(nc_pattern):]
+            offset += 2  # 添加了两个括号
+            
+            # 计算这个 not care 在 modified_regex 中的捕获组编号
+            # 需要计算在这个位置之前有多少个捕获组
+            groups_before = 0
+            i = 0
+            stack = []
+            temp_regex = modified_regex[:insert_pos + 1]  # 包括当前的左括号
+            while i < len(temp_regex):
+                if i > 0 and temp_regex[i-1] == '\\':
+                    i += 1
+                    continue
+                if temp_regex[i] == '(':
+                    if i + 2 < len(temp_regex) and temp_regex[i+1:i+3] == '?:':
+                        i += 3
+                        continue
+                    groups_before += 1
+                i += 1
+            
+            notcare_group_indices.append(groups_before)
+        
+        try:
+            modified_pattern = re.compile(modified_regex)
+            # 在原始文本中从 match.start() 位置开始搜索
+            modified_match = modified_pattern.search(match.string, match.start())
+            
+            if modified_match and modified_match.lastindex:
+                # 遍历所有捕获组
+                for i in range(1, modified_match.lastindex + 1):
+                    g_start = modified_match.start(i)
+                    g_end = modified_match.end(i)
+                    if g_start != -1 and g_end != -1:
+                        # 判断这个捕获组是 not care 还是 capture
+                        if i in notcare_group_indices:
+                            segments.append(("notcare", g_start, g_end))
+                        else:
+                            segments.append(("capture", g_start, g_end))
+        except Exception:
+            pass
+        
+        # 按位置排序
+        segments.sort(key=lambda x: x[1])
+        return segments
 
     def mark_as_mark_button_function(self):
         # 确保 highlight_items 存在
@@ -594,6 +707,12 @@ class MainGUI(tk.Tk):
 
             self.left_text_widget.tag_add(seg_tag, seg_start, seg_end)
             pos += seg_len
+        
+        # 提升所有 notcare tag 的优先级到最高
+        for i, seg in enumerate(item["segments"]):
+            if seg["type"] == "notcare":
+                seg_tag = f"{base_tag}_{i}"
+                self.left_text_widget.tag_raise(seg_tag)
         
         self.left_text_widget.update_idletasks()
 
@@ -911,6 +1030,8 @@ class MainGUI(tk.Tk):
         # ---------------------------------------------------------
         # 如果是 match segment → 删除整个 highlight（沿用你的旧逻辑）
         # ---------------------------------------------------------
+        deleted_order = item.get("order")
+        
         base_tag = item.get("tag")
         if base_tag:
             for t in list(self.left_text_widget.tag_names()):
@@ -933,6 +1054,13 @@ class MainGUI(tk.Tk):
             self.highlight_items.remove(item)
         except Exception:
             pass
+
+        # 重新排序后续对象的序号
+        if deleted_order is not None:
+            for remaining_item in self.highlight_items:
+                item_order = remaining_item.get("order")
+                if item_order and item_order > deleted_order:
+                    remaining_item["order"] = item_order - 1
 
         # 清空 regex 显示
         try:
@@ -1131,9 +1259,9 @@ class MainGUI(tk.Tk):
                     last_line_check_ptr = abs_start
                     
                     if m.lastindex:
-                        val = " | ".join(str(m.group(i)).replace("\r", "<CR>").replace("\n", "<LF>") for i in range(1, m.lastindex + 1))
+                        val = " | ".join(re.sub(r"[\r\n]+", "<LF>", str(m.group(i))) for i in range(1, m.lastindex + 1))
                     else:
-                        val = m.group(0).replace("\r", "<CR>").replace("\n", "<LF>")
+                        val = re.sub(r"[\r\n]+", "<LF>", m.group(0))
                     
                     col_data.append((current_line_count, val, m))
                 
@@ -1276,34 +1404,31 @@ class MainGUI(tk.Tk):
             end_index = f"1.0 + {end} chars"
             self.regex_text_input.tag_add("capture_group", start_index, end_index)
 
-        targets = [r"[\s\S]{0,10000}?", r".{0,10000}?"]
-        
-        for target in targets:
-            start_search = 0
-            while True:
-                idx = text.find(target, start_search)
-                if idx == -1:
-                    break
+        # 使用正则表达式匹配所有 not care 模式
+        notcare_pattern = r"\[\\s\\S\]\{0,\d+\}\?"
+        for match in re.finditer(notcare_pattern, text):
+            idx = match.start()
+            target = match.group()
+            
+            # 检查是否被转义
+            bs_count = 0
+            j = idx - 1
+            while j >= 0 and text[j] == '\\':
+                bs_count += 1
+                j -= 1
+            
+            if bs_count % 2 == 0:
+                # 检查是否在捕获组内
+                is_inside_capture = False
+                for g_start, g_end in groups:
+                    if g_start <= idx < g_end:
+                        is_inside_capture = True
+                        break
                 
-                bs_count = 0
-                j = idx - 1
-                while j >= 0 and text[j] == '\\':
-                    bs_count += 1
-                    j -= 1
-                
-                if bs_count % 2 == 0:
-                    is_inside_capture = False
-                    for g_start, g_end in groups:
-                        if g_start <= idx < g_end:
-                            is_inside_capture = True
-                            break
-                    
-                    if not is_inside_capture:
-                        start_pos = f"1.0 + {idx} chars"
-                        end_pos = f"1.0 + {idx + len(target)} chars"
-                        self.regex_text_input.tag_add("notcare", start_pos, end_pos)
-                
-                start_search = idx + len(target)
+                if not is_inside_capture:
+                    start_pos = f"1.0 + {idx} chars"
+                    end_pos = f"1.0 + {idx + len(target)} chars"
+                    self.regex_text_input.tag_add("notcare", start_pos, end_pos)
 
     def update_highlight_items(self, event=None):
         text = self.regex_text_input.get("1.0", "end-1c").strip()
@@ -1517,7 +1642,7 @@ class MainGUI(tk.Tk):
                 error_messages.append(f"Regex compilation failed: {regex}\n{e}")
                 continue
 
-            match = pattern.search(full_text)
+            match = self._find_non_overlapping_match(pattern, full_text)
             if not match:
                 error_messages.append(f"No match found: {regex}")
                 continue
@@ -1537,26 +1662,27 @@ class MainGUI(tk.Tk):
                 continue
 
             # ---------------------------------------------------------
-            # 4.2 对其所有 capture group 执行 mark_as_target_button_function
+            # 4.2 对其所有 capture group 和 not care 段执行相应的标记函数
             # ---------------------------------------------------------
-            if match.lastindex:  # 有捕获组
-                for i in range(1, match.lastindex + 1):
-                    try:
-                        g_start = match.start(i)
-                        g_end   = match.end(i)
+            # 分析正则表达式中的捕获组和 not care 段
+            segments_info = self._parse_regex_segments(regex, match)
+            
+            # 按顺序处理每个 segment
+            for seg_type, seg_start, seg_end in segments_info:
+                try:
+                    g_start_idx = f"1.0+{seg_start}c"
+                    g_end_idx = f"1.0+{seg_end}c"
 
-                        if g_start == -1 or g_end == -1:
-                            continue
-
-                        g_start_idx = f"1.0+{g_start}c"
-                        g_end_idx   = f"1.0+{g_end}c"
-
-                        self.left_text_widget.tag_remove("sel", "1.0", "end")
-                        self.left_text_widget.tag_add("sel", g_start_idx, g_end_idx)
+                    self.left_text_widget.tag_remove("sel", "1.0", "end")
+                    self.left_text_widget.tag_add("sel", g_start_idx, g_end_idx)
+                    
+                    if seg_type == "notcare":
+                        self.mark_as_not_care_button_function()
+                    elif seg_type == "capture":
                         self.mark_as_target_button_function()
-                    except Exception as e:
-                        error_messages.append(f"mark_as_target_button_function failed: {regex}\nCapture group {i}\n{e}")
-                        continue
+                except Exception:
+                    # 静默处理，某些 not care 段可能匹配 0 个字符
+                    continue
 
 
 
