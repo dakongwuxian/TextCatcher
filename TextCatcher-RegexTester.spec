@@ -1,4 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
+from datetime import datetime
+
+# 获取当前日期字符串，例如 20251222
+today = datetime.now()
+version_suffix = f"v{today.strftime('%y%m%d')}"
+# 定义动态文件名
+exe_name = f'TextCatcher-RegexTester_{version_suffix}'
 
 a = Analysis(
     ['TextCatcher-RegexTester.py'],
@@ -18,10 +25,9 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
-    name='TextCatcher-RegexTester',
+    exclude_binaries=True,
+    name=exe_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,4 +41,14 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='TextCatcher-RegexTester.ico',
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name=exe_name,
 )
